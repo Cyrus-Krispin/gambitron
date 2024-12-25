@@ -3,7 +3,6 @@ import Piece from "./Piece";
 import { PieceType } from "./types/pieces";
 
 const Board: React.FC = () => {
-  // Initialize board state
   const [board, setBoard] = useState<(PieceType | null)[][]>([
     [
       { type: "rook", color: "black" },
@@ -51,39 +50,44 @@ const Board: React.FC = () => {
     ],
   ]);
 
-  const [draggedPiece, setDraggedPiece] = useState<{
-    row: number;
-    col: number;
-  } | null>(null);
+  const [draggedPiece, setDraggedPiece] = useState<{ row: number; col: number } | null>(null);
 
+  // Handle drag start
   const handleDragStart = (row: number, col: number) => {
+    const piece = board[row][col];
+    console.log(`Dragging piece: ${piece?.type} (${piece?.color}) from (${row}, ${col})`);
     setDraggedPiece({ row, col });
   };
 
+  // Handle drop
   const handleDrop = (row: number, col: number) => {
     if (draggedPiece) {
       if (row == draggedPiece.row && col == draggedPiece.col) {
-        return;
+        return
       }
+      const piece = board[draggedPiece.row][draggedPiece.col];
+      console.log(`Dropping piece: ${piece?.type} (${piece?.color}) to (${row}, ${col})`);
       const newBoard = [...board];
-      newBoard[row][col] = newBoard[draggedPiece.row][draggedPiece.col];
-      newBoard[draggedPiece.row][draggedPiece.col] = null;
+      newBoard[row][col] = newBoard[draggedPiece.row][draggedPiece.col]; // Move the piece
+      newBoard[draggedPiece.row][draggedPiece.col] = null; // Clear the original square
       setBoard(newBoard);
-      setDraggedPiece(null);
+      setDraggedPiece(null); // Reset dragged piece
     }
   };
 
+  // Prevent default dragover behavior
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
 
+  // Render a single square
   const renderSquare = (row: number, col: number) => {
     const piece = board[row][col];
     return (
       <div
         key={`${row}-${col}`}
-        onDragOver={handleDragOver}
-        onDrop={() => handleDrop(row, col)}
+        onDragOver={handleDragOver} // Allow dropping
+        onDrop={() => handleDrop(row, col)} // Handle drop
         style={{
           width: "100%",
           height: "100%",
@@ -96,7 +100,7 @@ const Board: React.FC = () => {
         {piece ? (
           <div
             draggable
-            onDragStart={() => handleDragStart(row, col)}
+            onDragStart={() => handleDragStart(row, col)} // Handle drag start
             style={{
               width: "80%",
               height: "80%",
@@ -113,6 +117,7 @@ const Board: React.FC = () => {
     );
   };
 
+  // Render the board
   return (
     <div
       style={{
