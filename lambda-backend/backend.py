@@ -1,6 +1,29 @@
 import chess
 import chess.engine
 
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
+class Fen(BaseModel):
+    value: str
+
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Allow requests from your frontend's origin
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
+
+@app.post("/")
+async def root(fen_str:Fen):
+    return get_best_move(fen_str.value)
+
 def evaluate_board(board):
     material_values = {
         chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 1000
@@ -69,4 +92,3 @@ def get_best_move(fen_str, depth=3):
     return updated_fen, result
 
 
-print(get_best_move("rnbqkbnr/pppppppp/8/8/8/7N/PPPPPPPP/RNBQKB1R b KQkq - 1 1"))
