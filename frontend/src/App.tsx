@@ -7,7 +7,7 @@ interface PieceProps {
   square: string;
 }
 
-const Piece: React.FC<PieceProps> = ({ piece, square }) => {
+const Piece: React.FC<PieceProps> = ({ piece }) => {
   const pieceName = piece;
   const colorName = pieceName === pieceName.toUpperCase() ? "white" : "black";
   let pieceType: string;
@@ -85,7 +85,7 @@ const SquareComponent: React.FC<SquareProps> = ({
 
 function App() {
   const [chess] = useState(() => new Chess());
-  const [board, setBoard] = useState(chess.board());
+  const [, setBoard] = useState(chess.board());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
 
@@ -99,7 +99,6 @@ function App() {
       if (chess.move(move)) {
         setSelectedSquare(null);
         setPossibleMoves([]);
-        setBoard(chess.board());
 
         setTimeout(() => {
           makeAiMove();
