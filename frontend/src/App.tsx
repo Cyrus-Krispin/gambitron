@@ -118,23 +118,27 @@ function App() {
   const makeAiMove = async () => {
     try {
       const fen = chess.fen(); // Get the current FEN string from the chess instance
-      const response = await fetch("http://localhost:8000/", { // Ensure the URL matches your FastAPI endpoint
+      const apiUrl = `${
+        import.meta.env.VITE_backend
+      }?value=${encodeURIComponent(fen)}`;
+
+      const response = await fetch(apiUrl, {
+        // Use the constructed URL
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ value: fen }), // Match the Pydantic model's structure (key: value)
       });
-  
+
       if (response.ok) {
         const data = await response.json();
         console.log(data);
-        const updatedFen = data[0]; // Assuming the updated FEN string is in the first element of the returned array
-        const moveResult = data[1]; // Assuming the result (like 1-0, 0-1, or 1/2-1/2) is in the second element
-        
+        const updatedFen = data.updated_fen; // Assuming the updated FEN string is in the first element of the returned array
+        const moveResult = data.result; // Assuming the result (like 1-0, 0-1, or 1/2-1/2) is in the second element
+
         chess.load(updatedFen); // Update the chess instance with the new FEN string
         setBoard(chess.board()); // Update the board state in the UI
-  
+
         console.log("Move result:", moveResult); // Optional: log the game result
       } else {
         console.error("Failed to fetch best move:", response.statusText);
@@ -143,7 +147,6 @@ function App() {
       console.error("Error during AI move:", error);
     }
   };
-  
 
   const renderBoard = () => {
     const boardRows = [];

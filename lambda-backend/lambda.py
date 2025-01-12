@@ -8,6 +8,11 @@ def lambda_handler(event, context):
     updated_fen, result = get_best_move(fen_str)
     return {
         'statusCode': 200,
+        'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS, POST',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        },
         'body': json.dumps({'updated_fen': updated_fen, 'result': result})
     }
 
