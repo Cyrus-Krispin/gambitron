@@ -118,7 +118,7 @@ function App() {
     try {
       const fen = chess.fen(); // Get the current FEN string from the chess instance
       const apiUrl = `${
-        import.meta.env.VITE_backend
+        import.meta.env.VITE_local
       }?value=${encodeURIComponent(fen)}`;
 
       const response = await fetch(apiUrl, {
