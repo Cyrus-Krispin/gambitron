@@ -94,15 +94,16 @@ function App() {
   }, [chess]);
 
   const handleSquareClick = (square: string) => {
+    if (selectedSquare === square) {
+      return;
+    }
+  
     if (selectedSquare) {
       const move = { from: selectedSquare, to: square, promotion: "q" };
       if (chess.move(move)) {
         setSelectedSquare(null);
         setPossibleMoves([]);
-
-        setTimeout(() => {
-          makeAiMove();
-        }, 500);
+        makeAiMove();
       } else {
         setSelectedSquare(null);
         setPossibleMoves([]);
@@ -113,6 +114,7 @@ function App() {
       setPossibleMoves(moves.map((move) => move.slice(-2)));
     }
   };
+  
 
   const makeAiMove = async () => {
     try {
