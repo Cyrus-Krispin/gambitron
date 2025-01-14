@@ -97,7 +97,7 @@ function App() {
     if (selectedSquare === square) {
       return;
     }
-  
+
     if (selectedSquare) {
       const move = { from: selectedSquare, to: square, promotion: "q" };
       if (chess.move(move)) {
@@ -114,7 +114,6 @@ function App() {
       setPossibleMoves(moves.map((move) => move.slice(-2)));
     }
   };
-  
 
   const makeAiMove = async () => {
     try {

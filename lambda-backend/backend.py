@@ -20,8 +20,6 @@ app.add_middleware(
 async def root(value: str):
     return get_best_move(value)
 
-import chess
-
 def evaluate_board(board):
     if board.is_checkmate():
         return -10000 if board.turn else 10000
