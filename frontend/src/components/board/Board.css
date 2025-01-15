@@ -1,0 +1,32 @@
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: min(70vw, 70vh);
+  height: min(70vw, 70vh);
+  aspect-ratio: 1;
+  margin: auto;
+  border: 2px solid #444;
+}
+
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tile img {
+  width: 80%;
+  height: auto;
+}
+
+.tile.black {
+  background-color: #769656;
+}
+
+.tile.white {
+  background-color: #eeeed2;
+}

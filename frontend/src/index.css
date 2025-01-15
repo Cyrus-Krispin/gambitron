@@ -1,43 +1,14 @@
+html {
+  height: 100%;
+}
+body {
+  margin: 0;
+  height: 100%;
+}
+
 .board-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: grid;
+  place-content: center;
   height: 100vh;
-}
-.board {
-  display: flex;
-  flex-direction: column;
-  width: 400px;
-  height: 400px;
-  border: 1px solid black;
-}
-
-.board-row {
-  display: flex;
-  flex: 1;
-}
-
-.square {
-  width: 50px;
-  height: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-}
-
-.square.light {
-  background-color: #f0d9b5;
-}
-
-.square.dark {
-  background-color: #b58863;
-}
-.piece{
-  width: 80%;
-  height: 80%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-
+  background-color: #171513;
 }
