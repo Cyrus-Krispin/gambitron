@@ -1,4 +1,4 @@
-import "./Tile.css";
+import "./tile.css";
 
 interface TileProps {
   tileColor: string;
