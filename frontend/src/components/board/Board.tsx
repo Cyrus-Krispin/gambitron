@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Chess, Square } from "chess.js";
 import Tile from "../tile/tile";
 import "./Board.css";
