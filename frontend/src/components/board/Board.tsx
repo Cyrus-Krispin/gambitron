@@ -26,7 +26,7 @@ export default function Board() {
         setValidMoves([]);
 
         const apiUrl = `${
-          import.meta.env.VITE_backend
+          import.meta.env.VITE_
         }?value=${encodeURIComponent(chess.fen())}`;
 
         try {
@@ -39,8 +39,6 @@ export default function Board() {
 
           if (response.ok) {
             const data = await response.json();
-            console.log(data);
-
             if (data.updated_fen) {
               chess.load(data.updated_fen);
               setBoardState(chess.board());
