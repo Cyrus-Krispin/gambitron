@@ -1,14 +1,20 @@
 html {
+  margin: 0;
   height: 100%;
+  overflow: hidden;
 }
+
 body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif
 }
 
 .board-container {
-  display: grid;
-  place-content: center;
-  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh - 20px);
   background-color: #171513;
 }

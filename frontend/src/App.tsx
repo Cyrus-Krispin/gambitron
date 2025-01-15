@@ -1,13 +1,27 @@
-import React from "react";
+import { useState } from "react";
+import Header from "./components/header/header";
+import StartButton from "./components/start/start";
 import Board from "./components/board/Board";
 import "./index.css";
 
-const App: React.FC = () => {
+function App() {
+  const [gameStarted, setGameStarted] = useState(false);
+
+  const startGame = () => {
+    setGameStarted(true);
+  };
+
   return (
-    <div className="board-container">
-      <Board />
-    </div>
+    <>
+      <Header githubLink="https://github.com/your-repo-link" />
+      {!gameStarted && <StartButton onStart={startGame} />}
+      {gameStarted ? (
+        <div className="board-container"><Board /></div>
+      ) : (
+        <p className="start-game-message">Click "Start Game" to play!</p>
+      )}
+    </>
   );
-};
+}
 
 export default App;
