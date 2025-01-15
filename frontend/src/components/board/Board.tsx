@@ -15,6 +15,29 @@ export default function Board() {
 
   const handleTileClick = async (square: string) => {
     if (selectedSquare) {
+      if (selectedSquare === square) {
+        setSelectedSquare(null);
+        setValidMoves([]);
+        return;
+      }
+
+      const selectedPiece = chess.get(selectedSquare as Square);
+      const newPiece = chess.get(square as Square);
+      if (newPiece && newPiece.color === selectedPiece?.color) {
+        setSelectedSquare(square);
+        const moves = chess
+          .moves({ square: square as Square, verbose: true })
+          .map((m) => m.to);
+        setValidMoves(moves);
+        return;
+      }
+
+      if (!validMoves.includes(square)) {
+        setSelectedSquare(null);
+        setValidMoves([]);
+        return;
+      }
+
       const move = chess.move({
         from: selectedSquare as Square,
         to: square as Square,
