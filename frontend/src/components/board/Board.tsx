@@ -49,7 +49,7 @@ export default function Board() {
         setValidMoves([]);
 
         const apiUrl = `${
-          import.meta.env.VITE_local
+          import.meta.env.VITE_backend
         }?value=${encodeURIComponent(chess.fen())}`;
 
         try {
