@@ -110,7 +110,7 @@ def evaluate_board(board: chess.Board):
             if not piece.color:
                 position_value = piece_square_tables[piece.piece_type][chess.square_mirror(square)]
             piece_value = value + position_value
-            score += piece_value if piece.color else -piece_value
+            score += piece_value * 4 if piece.color else -piece_value * 4
     mobility_score = 0
     original_turn = board.turn
     for color in [chess.WHITE, chess.BLACK]:
