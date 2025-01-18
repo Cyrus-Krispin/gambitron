@@ -13,10 +13,12 @@ function App() {
 
   return (
     <>
-      <Header githubLink="https://github.com/your-repo-link" />
+      <Header githubLink="https://github.com/Cyrus-Krispin/chess_bot" />
       {!gameStarted && <StartButton onStart={startGame} />}
       {gameStarted ? (
-        <div className="board-container"><Board /></div>
+        <div className="board-container">
+          <Board />
+        </div>
       ) : (
         <p className="start-game-message">Click "Start Game" to play!</p>
       )}
