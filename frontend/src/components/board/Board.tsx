@@ -40,7 +40,10 @@ export default function Board() {
 
       let promotion = "q";
 
-      if (selectedPiece?.type === "p" && (square[1] === "1" || square[1] === "8")) {
+      if (
+        selectedPiece?.type === "p" &&
+        (square[1] === "1" || square[1] === "8")
+      ) {
         promotion = prompt("Promote to (q, r, b, n):", "q") || "q";
         if (!["q", "r", "b", "n"].includes(promotion)) {
           promotion = "q";
@@ -62,6 +65,11 @@ export default function Board() {
           import.meta.env.VITE_backend
         }?value=${encodeURIComponent(chess.fen())}`;
 
+        if (chess.isGameOver()) {
+          alert("YOU WIN!");
+          return;
+        }
+
         try {
           const response = await fetch(apiUrl, {
             method: "POST",
@@ -76,6 +84,9 @@ export default function Board() {
             if (data.updated_fen) {
               chess.load(data.updated_fen);
               setBoardState(chess.board());
+            }
+            if (chess.isGameOver()) {
+              alert("YOU LOSE!");
             }
           }
         } catch (error) {
