@@ -38,9 +38,19 @@ export default function Board() {
         return;
       }
 
+      let promotion = "q";
+
+      if (selectedPiece?.type === "p" && (square[1] === "1" || square[1] === "8")) {
+        promotion = prompt("Promote to (q, r, b, n):", "q") || "q";
+        if (!["q", "r", "b", "n"].includes(promotion)) {
+          promotion = "q";
+        }
+      }
+
       const move = chess.move({
         from: selectedSquare as Square,
         to: square as Square,
+        promotion: promotion,
       });
 
       if (move) {
