@@ -13,7 +13,7 @@ function App() {
 
   return (
     <>
-      <Header githubLink="https://github.com/Cyrus-Krispin/chess_bot" />
+      <Header githubLink="https://github.com/Cyrus-Krispin/gambitron" />
       {!gameStarted && <StartButton onStart={startGame} />}
       {gameStarted ? (
         <div className="board-container">

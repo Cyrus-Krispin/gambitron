@@ -30,7 +30,7 @@ Ready to challenge Gambitron? Click the link below to start a game online:
 ### Setup Frontend
 
 1. Clone the repository:  
-   `git clone https://github.com/Cyrus-Krispin/chess_bot`  
+   `git clone https://github.com/Cyrus-Krispin/gambitron`  
    `cd frontend`
 
 2. Install dependencies:  
