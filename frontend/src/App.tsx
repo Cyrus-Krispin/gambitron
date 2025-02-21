@@ -1,6 +1,7 @@
 import Header from "./components/header/header";
 import Board from "./components/board/Board";
 import "./index.css";
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
 
@@ -10,6 +11,7 @@ function App() {
       <div className="board-container">
         <Board />
       </div>
+      <Analytics />
     </>
   );
 }
