@@ -2,9 +2,10 @@
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: min(70vw, 70vh);
-  height: min(70vw, 70vh);
+  width: min(90vw, 90vh);
+  height: min(90vw, 90vh);
   aspect-ratio: 1;
   margin: auto;
-  border: 2px solid #444;
+  border: 5px solid #444;
+  border-radius: 5px;
 }
