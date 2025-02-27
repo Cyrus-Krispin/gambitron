@@ -1,0 +1,23 @@
+.scene-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #161512; /* Background color */
+}
+
+.scene {
+    width: 100vw;
+    height: 50vh; 
+}
+
+.play-button {
+    margin-top: 10px;
+}
+
+.play-button button {
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px 20px;
+}

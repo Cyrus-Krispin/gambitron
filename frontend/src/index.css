@@ -10,11 +10,3 @@ body {
   overflow: hidden;
   font-family: 'Poppins', sans-serif
 }
-
-.board-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: calc(100vh);
-  background-color: #171513;
-}
