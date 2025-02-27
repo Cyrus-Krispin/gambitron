@@ -3,7 +3,7 @@ import { Canvas, useLoader, useFrame, useThree } from "@react-three/fiber";
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
-import { Button } from "@material-ui/core";
+import { Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 import "./Scene.css";
