@@ -106,30 +106,34 @@ export default function Board() {
   };
 
   return (
-    <div className="chess-board">
-      {vertical
-        .slice()
-        .reverse()
-        .map((row, y) =>
-          horizontal.map((col, x) => {
-            const square = boardState[y][x];
-            const tileColor = (x + y) % 2 === 0 ? "white" : "black";
-            const squareName = `${col}${row}`;
-            const isHighlighted = validMoves.includes(squareName);
+    <>
+      <div className="board-container">
+        <div className="chess-board">
+          {vertical
+            .slice()
+            .reverse()
+            .map((row, y) =>
+              horizontal.map((col, x) => {
+                const square = boardState[y][x];
+                const tileColor = (x + y) % 2 === 0 ? "white" : "black";
+                const squareName = `${col}${row}`;
+                const isHighlighted = validMoves.includes(squareName);
 
-            return (
-              <Tile
-                key={squareName}
-                tileColor={tileColor}
-                piece={
-                  square?.type ? `${square.color}${square.type}` : undefined
-                }
-                onClick={() => handleTileClick(squareName)}
-                isHighlighted={isHighlighted}
-              />
-            );
-          })
-        )}
-    </div>
+                return (
+                  <Tile
+                    key={squareName}
+                    tileColor={tileColor}
+                    piece={
+                      square?.type ? `${square.color}${square.type}` : undefined
+                    }
+                    onClick={() => handleTileClick(squareName)}
+                    isHighlighted={isHighlighted}
+                  />
+                );
+              })
+            )}
+        </div>
+      </div>
+    </>
   );
 }

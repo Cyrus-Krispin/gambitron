@@ -9,3 +9,11 @@
   border: 5px solid #444;
   border-radius: 5px;
 }
+
+.board-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh);
+  background-color: #171513;
+}
