@@ -17,23 +17,23 @@ def lambda_handler(event, context):
     }
 
     
-PAWN_VALUE=100
-KNIGHT_VALUE=320
-BISHOP_VALUE=330
-ROOK_VALUE=500
-QUEEN_VALUE=900
-KING_VALUE=20000
+PAWN_VALUE = 100
+KNIGHT_VALUE = 320
+BISHOP_VALUE = 330
+ROOK_VALUE = 500
+QUEEN_VALUE = 900
+KING_VALUE = 20000
 
-material_values={
-    chess.PAWN:PAWN_VALUE,
-    chess.KNIGHT:KNIGHT_VALUE,
-    chess.BISHOP:BISHOP_VALUE,
-    chess.ROOK:ROOK_VALUE,
-    chess.QUEEN:QUEEN_VALUE,
-    chess.KING:KING_VALUE
+material_values = {
+    chess.PAWN: PAWN_VALUE,
+    chess.KNIGHT: KNIGHT_VALUE,
+    chess.BISHOP: BISHOP_VALUE,
+    chess.ROOK: ROOK_VALUE,
+    chess.QUEEN: QUEEN_VALUE,
+    chess.KING: KING_VALUE
 }
 
-pawn_table=[
+pawn_table = [
      0,  0,  0,  0,  0,  0,  0,  0,
      5, 10, 10,-20,-20, 10, 10,  5,
      5, -5,-10,  0,  0,-10, -5,  5,
@@ -44,7 +44,7 @@ pawn_table=[
      0,  0,  0,  0,  0,  0,  0,  0
 ]
 
-knight_table=[
+knight_table = [
    -50,-40,-30,-30,-30,-30,-40,-50,
    -40,-20,  0,  5,  5,  0,-20,-40,
    -30,  5, 10, 15, 15, 10,  5,-30,
@@ -55,7 +55,7 @@ knight_table=[
    -50,-40,-30,-30,-30,-30,-40,-50
 ]
 
-bishop_table=[
+bishop_table = [
    -20,-10,-10,-10,-10,-10,-10,-20,
    -10,  5,  0,  0,  0,  0,  5,-10,
    -10, 10, 10, 10, 10, 10, 10,-10,
@@ -66,7 +66,7 @@ bishop_table=[
    -20,-10,-10,-10,-10,-10,-10,-20
 ]
 
-rook_table=[
+rook_table = [
      0,  0,  0,  5,  5,  0,  0,  0,
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
@@ -77,7 +77,7 @@ rook_table=[
      0,  0,  0,  5,  5,  0,  0,  0
 ]
 
-queen_table=[
+queen_table = [
    -20,-10,-10, -5, -5,-10,-10,-20,
    -10,  0,  5,  0,  0,  0,  0,-10,
    -10,  5,  5,  5,  5,  5,  0,-10,
@@ -88,7 +88,7 @@ queen_table=[
    -20,-10,-10, -5, -5,-10,-10,-20
 ]
 
-king_table=[
+king_table = [
    -30,-40,-40,-50,-50,-40,-40,-30,
    -30,-40,-40,-50,-50,-40,-40,-30,
    -30,-40,-40,-50,-50,-40,-40,-30,
@@ -99,154 +99,163 @@ king_table=[
     20, 30, 10,  0,  0, 10, 30, 20
 ]
 
-piece_square_tables={
-    chess.PAWN:pawn_table,
-    chess.KNIGHT:knight_table,
-    chess.BISHOP:bishop_table,
-    chess.ROOK:rook_table,
-    chess.QUEEN:queen_table,
-    chess.KING:king_table
+piece_square_tables = {
+    chess.PAWN: pawn_table,
+    chess.KNIGHT: knight_table,
+    chess.BISHOP: bishop_table,
+    chess.ROOK: rook_table,
+    chess.QUEEN: queen_table,
+    chess.KING: king_table
 }
 
-def evaluate_board(board:chess.Board)->float:
-    if board.is_checkmate():
-        return -999999 if board.turn==chess.WHITE else 999999
-    if board.is_stalemate() or board.is_insufficient_material():
+CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
+CENTER_PAWN_BONUS = 30
+ADVANCED_PAWN_MULTIPLIER = 3
+
+def evaluate_board_state(board_state: chess.Board) -> float:
+    if board_state.is_checkmate():
+        return -999999 if board_state.turn == chess.WHITE else 999999
+    if board_state.is_stalemate() or board_state.is_insufficient_material():
         return 0
-    score=0
-    white_bishop_count=len(board.pieces(chess.BISHOP,chess.WHITE))
-    black_bishop_count=len(board.pieces(chess.BISHOP,chess.BLACK))
+    evaluation_score = 0
+    white_bishops_count = len(board_state.pieces(chess.BISHOP, chess.WHITE))
+    black_bishops_count = len(board_state.pieces(chess.BISHOP, chess.BLACK))
     for square in chess.SQUARES:
-        piece=board.piece_at(square)
+        piece = board_state.piece_at(square)
         if piece:
-            piece_type=piece.piece_type
-            value=material_values[piece_type]
-            if piece.color==chess.WHITE:
-                ps=piece_square_tables[piece_type][63-square]
-                score+=value
-                score+=ps
+            piece_type = piece.piece_type
+            base_value = material_values[piece_type]
+            if piece.color == chess.WHITE:
+                piece_square_value = piece_square_tables[piece_type][square]
+                evaluation_score += base_value + piece_square_value
             else:
-                ps=piece_square_tables[piece_type][square]
-                score-=value
-                score-=ps
-    if white_bishop_count>=2:
-        score+=30
-    if black_bishop_count>=2:
-        score-=30
-    for color in[chess.WHITE,chess.BLACK]:
-        rooks=board.pieces(chess.ROOK,color)
-        for r_square in rooks:
-            f=chess.square_file(r_square)
-            pw=0
-            pb=0
-            for sq in range(f,64,8):
-                p=board.piece_at(sq)
-                if p and p.piece_type==chess.PAWN:
-                    if p.color==chess.WHITE:
-                        pw+=1
+                piece_square_value = piece_square_tables[piece_type][63 - square]
+                evaluation_score -= base_value + piece_square_value
+            if piece_type == chess.PAWN:
+                if square in CENTER_SQUARES:
+                    if piece.color == chess.WHITE:
+                        evaluation_score += CENTER_PAWN_BONUS
                     else:
-                        pb+=1
-            if pw==0 and pb==0:
-                b=10
-            elif (color==chess.WHITE and pw==0) or (color==chess.BLACK and pb==0):
-                b=5
+                        evaluation_score -= CENTER_PAWN_BONUS
+                pawn_rank = chess.square_rank(square)
+                if piece.color == chess.WHITE:
+                    evaluation_score += pawn_rank * ADVANCED_PAWN_MULTIPLIER
+                else:
+                    evaluation_score -= (7 - pawn_rank) * ADVANCED_PAWN_MULTIPLIER
+    if white_bishops_count >= 2:
+        evaluation_score += 30
+    if black_bishops_count >= 2:
+        evaluation_score -= 30
+    for color in [chess.WHITE, chess.BLACK]:
+        rooks = board_state.pieces(chess.ROOK, color)
+        for rook_square in rooks:
+            file_index = chess.square_file(rook_square)
+            white_pawn_count = 0
+            black_pawn_count = 0
+            for sq in range(file_index, 64, 8):
+                piece_on_sq = board_state.piece_at(sq)
+                if piece_on_sq and piece_on_sq.piece_type == chess.PAWN:
+                    if piece_on_sq.color == chess.WHITE:
+                        white_pawn_count += 1
+                    else:
+                        black_pawn_count += 1
+            if white_pawn_count == 0 and black_pawn_count == 0:
+                bonus = 10
+            elif (color == chess.WHITE and white_pawn_count == 0) or (color == chess.BLACK and black_pawn_count == 0):
+                bonus = 5
             else:
-                b=0
-            score+=b if color==chess.WHITE else -b
-    for color in[chess.WHITE,chess.BLACK]:
-        psq=board.pieces(chess.PAWN,color)
-        fo={}
-        for s in psq:
-            f=chess.square_file(s)
-            if f not in fo:
-                fo[f]=0
-            fo[f]+=1
-        for f,cnt in fo.items():
-            if cnt>1:
-                pn=15*(cnt-1)
-                score+=(-pn if color==chess.WHITE else pn)
-        for f in fo:
-            if (f-1)not in fo and (f+1)not in fo:
-                pn=10
-                score+=(-pn if color==chess.WHITE else pn)
-    ot=board.turn
-    ms=0
-    for color in[chess.WHITE,chess.BLACK]:
-        board.turn=color
-        m=len(list(board.legal_moves))
-        ms+=(m if color==chess.WHITE else -m)
-    board.turn=ot
-    score+=0.1*ms
-    return score
+                bonus = 0
+            evaluation_score += bonus if color == chess.WHITE else -bonus
+    for color in [chess.WHITE, chess.BLACK]:
+        pawn_squares = board_state.pieces(chess.PAWN, color)
+        file_occurrences = {}
+        for square in pawn_squares:
+            file_index = chess.square_file(square)
+            file_occurrences[file_index] = file_occurrences.get(file_index, 0) + 1
+        for file_index, count in file_occurrences.items():
+            if count > 1:
+                doubled_penalty = 15 * (count - 1)
+                evaluation_score += -doubled_penalty if color == chess.WHITE else doubled_penalty
+        for file_index in file_occurrences:
+            if (file_index - 1) not in file_occurrences and (file_index + 1) not in file_occurrences:
+                isolated_penalty = 10
+                evaluation_score += -isolated_penalty if color == chess.WHITE else isolated_penalty
+    original_turn = board_state.turn
+    mobility_score = 0
+    for color in [chess.WHITE, chess.BLACK]:
+        board_state.turn = color
+        legal_moves_count = len(list(board_state.legal_moves))
+        mobility_score += legal_moves_count if color == chess.WHITE else -legal_moves_count
+    board_state.turn = original_turn
+    evaluation_score += 0.1 * mobility_score
+    return evaluation_score
 
-def minimax(board:chess.Board,depth:int,alpha:float,beta:float,maximizing_player:bool)->float:
-    if depth==0 or board.is_game_over():
-        return evaluate_board(board)
-    if maximizing_player:
-        mx=float('-inf')
-        for move in board.legal_moves:
-            board.push(move)
-            ev=minimax(board,depth-1,alpha,beta,False)
-            board.pop()
-            mx=max(mx,ev)
-            alpha=max(alpha,ev)
-            if beta<=alpha:
+def minimax(board_state: chess.Board, depth: int, alpha: float, beta: float, is_maximizing: bool) -> float:
+    if depth == 0 or board_state.is_game_over():
+        return evaluate_board_state(board_state)
+    if is_maximizing:
+        max_eval = float('-inf')
+        for move in board_state.legal_moves:
+            board_state.push(move)
+            move_eval = minimax(board_state, depth - 1, alpha, beta, False)
+            board_state.pop()
+            max_eval = max(max_eval, move_eval)
+            alpha = max(alpha, move_eval)
+            if beta <= alpha:
                 break
-        return mx
+        return max_eval
     else:
-        mn=float('inf')
-        for move in board.legal_moves:
-            board.push(move)
-            ev=minimax(board,depth-1,alpha,beta,True)
-            board.pop()
-            mn=min(mn,ev)
-            beta=min(beta,ev)
-            if beta<=alpha:
+        min_eval = float('inf')
+        for move in board_state.legal_moves:
+            board_state.push(move)
+            move_eval = minimax(board_state, depth - 1, alpha, beta, True)
+            board_state.pop()
+            min_eval = min(min_eval, move_eval)
+            beta = min(beta, move_eval)
+            if beta <= alpha:
                 break
-        return mn
+        return min_eval
 
-def best_move(board:chess.Board,depth:int):
-    lm=list(board.legal_moves)
-    if not lm:
+def select_best_move(board_state: chess.Board, depth: int):
+    legal_moves_list = list(board_state.legal_moves)
+    if not legal_moves_list:
         return None
-    def capture_value(m:chess.Move):
-        cp=board.piece_at(m.to_square)
-        if cp:
-            return material_values[cp.piece_type]
-        return 0
-    lm.sort(key=capture_value,reverse=True)
-    if board.turn==chess.WHITE:
-        be=float('-inf')
-        cm=None
-        for move in lm:
-            board.push(move)
-            ev=minimax(board,depth-1,float('-inf'),float('inf'),False)
-            board.pop()
-            if ev>be:
-                be=ev
-                cm=move
-        return cm
+    def capture_value(move: chess.Move):
+        captured_piece = board_state.piece_at(move.to_square)
+        return material_values[captured_piece.piece_type] if captured_piece else 0
+    legal_moves_list.sort(key=capture_value, reverse=True)
+    if board_state.turn == chess.WHITE:
+        best_evaluation = float('-inf')
+        best_move_found = None
+        for move in legal_moves_list:
+            board_state.push(move)
+            move_evaluation = minimax(board_state, depth - 1, float('-inf'), float('inf'), False)
+            board_state.pop()
+            if move_evaluation > best_evaluation:
+                best_evaluation = move_evaluation
+                best_move_found = move
+        return best_move_found
     else:
-        be=float('inf')
-        cm=None
-        for move in lm:
-            board.push(move)
-            ev=minimax(board,depth-1,float('-inf'),float('inf'),True)
-            board.pop()
-            if ev<be:
-                be=ev
-                cm=move
-        return cm
+        best_evaluation = float('inf')
+        best_move_found = None
+        for move in legal_moves_list:
+            board_state.push(move)
+            move_evaluation = minimax(board_state, depth - 1, float('-inf'), float('inf'), True)
+            board_state.pop()
+            if move_evaluation < best_evaluation:
+                best_evaluation = move_evaluation
+                best_move_found = move
+        return best_move_found
 
-def get_best_move(fen_str:str,depth:int=3):
+def get_best_move(fen_str: str, depth: int = 3):
     try:
-        board=chess.Board(fen_str)
+        board_state = chess.Board(fen_str)
     except ValueError as e:
-        raise ValueError("Invalid FEN string.")from e
-    if board.is_game_over():
-        return{"updated_fen":board.fen(),"result":board.result()}
-    m=best_move(board,depth)
-    if m is None:
+        raise ValueError("Invalid FEN string.") from e
+    if board_state.is_game_over():
+        return {"updated_fen": board_state.fen(), "result": board_state.result()}
+    chosen_move = select_best_move(board_state, depth)
+    if chosen_move is None:
         raise ValueError("No valid moves found.")
-    board.push(m)
-    return board.fen(), board.result()
+    board_state.push(chosen_move)
+    return board_state.fen(), board_state.result()
