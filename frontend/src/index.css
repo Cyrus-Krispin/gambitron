@@ -1,12 +1,15 @@
 html {
   margin: 0;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
 }
 
 body {
   margin: 0;
-  height: 100%;
-  overflow: hidden;
-  font-family: 'Poppins', sans-serif
+  min-height: 100%;
+  font-family: 'Poppins', sans-serif;
+  background-color: #121110;
+}
+
+#root {
+  min-height: 100%;
 }

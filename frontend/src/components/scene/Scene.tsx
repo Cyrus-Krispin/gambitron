@@ -90,14 +90,18 @@ const Scene: React.FC = () => {
         </Suspense>
       </div>
 
-      <div className="play-button">
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => navigate("/board")}
-        >
-          Play Against Gambitron
-        </Button>
+      <div className="hero-copy">
+        <h1>Gambitron</h1>
+        <p>Play sleek, fast chess against an AI opponent.</p>
+        <div className="play-button">
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => navigate("/board")}
+          >
+            Play Against Gambitron
+          </Button>
+        </div>
       </div>
     </div>
   );
