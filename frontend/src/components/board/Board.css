@@ -104,10 +104,14 @@
 }
 
 @media (max-width: 900px) {
-  .board-root { grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 8px; }
+  .board-root { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 8px; }
+  .left-panel { order: 1; justify-content: center; }
+  .board-area { order: 2; }
+  .side-panel { order: 3; }
 }
 
 .board-area { display: flex; align-items: center; justify-content: center; grid-column: 2; }
+.left-panel { grid-column: 1; display: flex; align-items: center; justify-content: flex-end; }
 
 .side-panel { display: flex; flex-direction: column; gap: 8px; align-self: center; grid-column: 3; }
 

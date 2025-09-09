@@ -304,6 +304,9 @@ export default function Board() {
   return (
     <>
       <div className="board-root">
+        <div className="left-panel">
+          <Button variant="contained" color="primary" onClick={handleReset}>New Game</Button>
+        </div>
         <div className="board-area">
           <div className="chess-board">
             {vertical
