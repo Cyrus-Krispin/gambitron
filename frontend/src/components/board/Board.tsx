@@ -14,6 +14,12 @@ function computeResult(game: Chess): string {
     const winner = game.turn() === "w" ? "b" : "w";
     return winner === "w" ? "1-0" : "0-1";
   }
+  if (game.isStalemate()) {
+    return "1/2-1/2";
+  }
+  if (game.isDraw()) {
+    return "1/2-1/2";
+  }
   return "1/2-1/2";
 }
 
@@ -57,6 +63,7 @@ export default function Board() {
   const [initialTimeMs, setInitialTimeMs] = useState<number>(START_TIME_MS);
   const [aiThinking, setAiThinking] = useState<boolean>(false);
   const [playerHasMoved, setPlayerHasMoved] = useState<boolean>(false);
+  const [gameEnded, setGameEnded] = useState<boolean>(false);
 
   // Start game configuration
   const [startOpen, setStartOpen] = useState<boolean>(false);
@@ -108,7 +115,7 @@ export default function Board() {
 
   // Run player clock when it's player's turn and game not over
   useEffect(() => {
-    if (chess.isGameOver()) return;
+    if (chess.isGameOver() || gameEnded) return;
     const isPlayersTurn = chess.turn() === "w"; // human plays White
     if (!playerHasMoved) return; // don't start clock until first move is made
     if (!isPlayersTurn || aiThinking) return;
@@ -120,20 +127,43 @@ export default function Board() {
       setPlayerTimeMs((t) => clampNonNegative(t - delta));
     }, 100);
     return () => window.clearInterval(id);
-  }, [boardState, aiThinking, playerHasMoved]);
+  }, [boardState, aiThinking, playerHasMoved, gameEnded]);
 
   // Run AI clock only while thinking
   useEffect(() => {
-    if (!aiThinking || chess.isGameOver()) return;
+    if (!aiThinking || chess.isGameOver() || gameEnded) return;
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
       const delta = now - last;
       last = now;
-      setAiTimeMs((t) => clampNonNegative(t - delta));
+      setAiTimeMs((t) => {
+        const newTime = clampNonNegative(t - delta);
+        // Check if AI ran out of time while thinking
+        if (newTime <= 0 && t > 0) {
+          openEndgame("1-0"); // Player wins by AI timeout
+          setAiThinking(false);
+        }
+        return newTime;
+      });
     }, 100);
     return () => window.clearInterval(id);
-  }, [aiThinking]);
+  }, [aiThinking, gameEnded]);
+
+  // Check for time-based endgames
+  useEffect(() => {
+    if (chess.isGameOver() || gameEnded) return;
+    if (!playerHasMoved) return; // don't check time until game starts
+    if (aiThinking) return; // don't check timeouts while AI is thinking
+    
+    if (playerTimeMs <= 0 && chess.turn() === "w") {
+      // Player ran out of time
+      openEndgame("0-1");
+    } else if (aiTimeMs <= 0 && chess.turn() === "b") {
+      // AI ran out of time
+      openEndgame("1-0");
+    }
+  }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded]);
 
   const apiUrlBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
   const adminKeyEnv = useMemo(() => `${import.meta.env.VITE_admin_key || ""}`.trim(), []);
@@ -176,6 +206,8 @@ export default function Board() {
   const openEndgame = (result: string) => {
     setEndgameResult(result);
     setEndgameOpen(true);
+    setGameEnded(true);
+    setAiThinking(false);
   };
 
   const callAIMove = async (fenToSend: string) => {
@@ -195,6 +227,12 @@ export default function Board() {
       }
 
       const data = await response.json();
+      
+      // Check if game ended due to timeout while waiting for response
+      if (gameEnded) {
+        return; // Game already ended due to timeout, don't process response
+      }
+      
       if (data.updated_fen) {
         chess.load(data.updated_fen);
         setBoardState(chess.board());
@@ -333,15 +371,25 @@ export default function Board() {
   };
 
   const startNewGameWithTime = (minutes: number) => {
-    const baseMs = Math.max(1, minutes) * 60 * 1000;
-    chess.reset();
-    setBoardState(chess.board());
+    const baseMs = Math.max(0.1, minutes) * 60 * 1000;
+    
+    // Clear all game state first
+    setGameEnded(true); // Stop all timers immediately
+    setAiThinking(false);
     setSelectedSquare(null);
     setValidMoves([]);
+    
+    // Reset chess game
+    chess.reset();
+    setBoardState(chess.board());
+    
+    // Set new game state
     setPlayerTimeMs(baseMs);
     setAiTimeMs(baseMs);
     setInitialTimeMs(baseMs);
     setPlayerHasMoved(false);
+    setGameEnded(false); // Now allow timers to start again
+    
     if (typeof window !== "undefined") {
       localStorage.removeItem("gambitron_fen");
       localStorage.setItem("gambitron_clock_player", String(baseMs));
@@ -518,7 +566,7 @@ export default function Board() {
         <DialogTitle>Start New Game</DialogTitle>
         <DialogContent>
           <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontWeight: 600 }}>Time Control (minutes each)</div>
+            <div style={{ fontWeight: 600 }}>Time Control</div>
             <ToggleButtonGroup
               exclusive
               value={selectedMinutes}
@@ -530,6 +578,7 @@ export default function Board() {
               <ToggleButton value={5}>5</ToggleButton>
               <ToggleButton value={10}>10</ToggleButton>
               <ToggleButton value={15}>15</ToggleButton>
+              <ToggleButton value={0.167}>10s</ToggleButton>
             </ToggleButtonGroup>
           </div>
         </DialogContent>
@@ -599,13 +648,52 @@ export default function Board() {
       )}
 
       {/* Endgame Dialog */}
-      <Dialog open={endgameOpen} onClose={() => setEndgameOpen(false)}>
-        <DialogTitle>Game Over</DialogTitle>
-        <DialogContent>
-          <div style={{ marginTop: 8 }}>Result: {endgameResult}</div>
+      <Dialog 
+        open={endgameOpen} 
+        onClose={() => setEndgameOpen(false)}
+        PaperProps={{
+          style: {
+            backgroundColor: '#1f2937',
+            color: 'white',
+            borderRadius: '12px',
+            border: '1px solid #374151'
+          }
+        }}
+      >
+        <DialogTitle style={{ color: 'white', textAlign: 'center', fontSize: '24px', fontWeight: 'bold' }}>
+          {endgameResult === "1-0" ? "🎉 You Win!" : 
+           endgameResult === "0-1" ? "😔 You Lose" : 
+           "🤝 Draw"}
+        </DialogTitle>
+        <DialogContent style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ fontSize: '16px', marginBottom: '16px' }}>
+            {endgameResult === "1-0" && chess.isCheckmate() && "Checkmate! You outplayed Gambitron!"}
+            {endgameResult === "1-0" && !chess.isCheckmate() && "Gambitron ran out of time!"}
+            {endgameResult === "0-1" && chess.isCheckmate() && "Checkmate! Gambitron got you!"}
+            {endgameResult === "0-1" && !chess.isCheckmate() && "You ran out of time!"}
+            {endgameResult === "1/2-1/2" && chess.isStalemate() && "Stalemate! No legal moves available."}
+            {endgameResult === "1/2-1/2" && !chess.isStalemate() && "Draw! The game ends in a tie."}
+          </div>
+          <div style={{ fontSize: '14px', color: '#9ca3af' }}>
+            Result: {endgameResult}
+          </div>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEndgameOpen(false)}>Close</Button>
+        <DialogActions style={{ justifyContent: 'center', padding: '20px' }}>
+          <Button 
+            onClick={() => {
+              setEndgameOpen(false);
+              setStartOpen(true);
+            }}
+            style={{ 
+              backgroundColor: '#3b82f6', 
+              color: 'white',
+              padding: '10px 24px',
+              borderRadius: '8px',
+              fontWeight: 'bold'
+            }}
+          >
+            New Game
+          </Button>
         </DialogActions>
       </Dialog>
 
