@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Chess, Square } from "chess.js";
-import Tile from "../tile/tile";
-import "./Board.css";
-import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert } from "@mui/material";
+import ChessPiece from "../ChessPiece";
+import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, ToggleButtonGroup, ToggleButton, TextField, Paper } from "@mui/material";
 
 const horizontal = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const vertical = ["1", "2", "3", "4", "5", "6", "7", "8"];
@@ -55,7 +54,17 @@ export default function Board() {
   // Clocks
   const [playerTimeMs, setPlayerTimeMs] = useState<number>(START_TIME_MS);
   const [aiTimeMs, setAiTimeMs] = useState<number>(START_TIME_MS);
+  const [initialTimeMs, setInitialTimeMs] = useState<number>(START_TIME_MS);
   const [aiThinking, setAiThinking] = useState<boolean>(false);
+  const [playerHasMoved, setPlayerHasMoved] = useState<boolean>(false);
+
+  // Start game configuration
+  const [startOpen, setStartOpen] = useState<boolean>(false);
+  const [selectedMinutes, setSelectedMinutes] = useState<number>(5);
+
+  // Admin test panel
+  const [adminOpen, setAdminOpen] = useState<boolean>(false);
+  const [fenInput, setFenInput] = useState<string>("");
 
   // Persisted load on mount
   useEffect(() => {
@@ -67,6 +76,8 @@ export default function Board() {
       try {
         chess.load(savedFen);
         setBoardState(chess.board());
+        // Assume game already started if resuming from a saved position
+        setPlayerHasMoved(true);
       } catch (_) {
         localStorage.removeItem("gambitron_fen");
       }
@@ -78,6 +89,9 @@ export default function Board() {
     if (savedAi) {
       const v = parseInt(savedAi, 10);
       if (!Number.isNaN(v)) setAiTimeMs(v);
+    }
+    if (!savedFen) {
+      setStartOpen(true);
     }
   }, []);
 
@@ -96,6 +110,7 @@ export default function Board() {
   useEffect(() => {
     if (chess.isGameOver()) return;
     const isPlayersTurn = chess.turn() === "w"; // human plays White
+    if (!playerHasMoved) return; // don't start clock until first move is made
     if (!isPlayersTurn || aiThinking) return;
     let last = performance.now();
     const id = window.setInterval(() => {
@@ -105,7 +120,7 @@ export default function Board() {
       setPlayerTimeMs((t) => clampNonNegative(t - delta));
     }, 100);
     return () => window.clearInterval(id);
-  }, [boardState, aiThinking]);
+  }, [boardState, aiThinking, playerHasMoved]);
 
   // Run AI clock only while thinking
   useEffect(() => {
@@ -121,12 +136,42 @@ export default function Board() {
   }, [aiThinking]);
 
   const apiUrlBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
+  const adminKeyEnv = useMemo(() => `${import.meta.env.VITE_admin_key || ""}`.trim(), []);
 
   const saveFen = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("gambitron_fen", chess.fen());
     }
   };
+
+  // Reveal admin panel via URL key match ?adminKey=... and optional ?fen=...; default to White to move
+  useEffect(() => {
+    (async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const key = params.get("adminKey");
+        const fenParam = params.get("fen");
+        const keepTurn = params.get("keepTurn");
+        const preserveTurn = keepTurn === "1" || keepTurn === "true";
+        if (adminKeyEnv && key && key === adminKeyEnv) {
+          setAdminOpen(true);
+          if (fenParam && fenParam.length > 0) {
+            setFenInput(fenParam);
+            const fenToLoad = preserveTurn ? fenParam : forceWhiteToMoveFen(fenParam);
+            await loadFenAndMaybeAI(fenToLoad, /*callAIWhenBlack*/ preserveTurn);
+            setPlayerHasMoved(false);
+            // Remove FEN from URL after loading
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete("fen");
+            newUrl.searchParams.delete("keepTurn");
+            window.history.replaceState({}, "", newUrl.toString());
+          }
+        }
+      } catch (_) {
+        // ignore URL parse issues
+      }
+    })();
+  }, [adminKeyEnv]);
 
   const openEndgame = (result: string) => {
     setEndgameResult(result);
@@ -197,6 +242,7 @@ export default function Board() {
       setSelectedSquare(null);
       setValidMoves([]);
       saveFen();
+      if (!playerHasMoved) setPlayerHasMoved(true);
 
       if (chess.isGameOver()) {
         openEndgame(computeResult(chess));
@@ -270,6 +316,7 @@ export default function Board() {
 
     setBoardState(chess.board());
     saveFen();
+    if (!playerHasMoved) setPlayerHasMoved(true);
 
     if (chess.isGameOver()) {
       openEndgame(computeResult(chess));
@@ -279,76 +326,162 @@ export default function Board() {
     await callAIMove(chess.fen());
   };
 
-  const inCheck = chess.inCheck();
-  const aiInCheck = chess.turn() === "b" && inCheck;
-  const playerInCheck = chess.turn() === "w" && inCheck;
-
   const isPlayersTurn = chess.turn() === "w" && !aiThinking;
-  const aiBarActive = !isPlayersTurn;
-  const playerBarActive = isPlayersTurn;
 
   const handleReset = () => {
+    setStartOpen(true);
+  };
+
+  const startNewGameWithTime = (minutes: number) => {
+    const baseMs = Math.max(1, minutes) * 60 * 1000;
     chess.reset();
     setBoardState(chess.board());
     setSelectedSquare(null);
     setValidMoves([]);
-    setPlayerTimeMs(START_TIME_MS);
-    setAiTimeMs(START_TIME_MS);
+    setPlayerTimeMs(baseMs);
+    setAiTimeMs(baseMs);
+    setInitialTimeMs(baseMs);
+    setPlayerHasMoved(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem("gambitron_fen");
-      localStorage.removeItem("gambitron_clock_player");
-      localStorage.removeItem("gambitron_clock_ai");
+      localStorage.setItem("gambitron_clock_player", String(baseMs));
+      localStorage.setItem("gambitron_clock_ai", String(baseMs));
     }
   };
 
+  const loadFenAndMaybeAI = async (fen: string, callAIWhenBlack: boolean = true) => {
+    try {
+      chess.load(fen);
+    } catch (e) {
+      setErrorMessage("Invalid FEN");
+      setErrorOpen(true);
+      return;
+    }
+    setBoardState(chess.board());
+    setSelectedSquare(null);
+    setValidMoves([]);
+    saveFen();
+    // If it's black to move, call AI immediately
+    if (callAIWhenBlack && chess.turn() === "b" && !chess.isGameOver()) {
+      await callAIMove(chess.fen());
+    }
+  };
+
+  const forceWhiteToMoveFen = (fen: string): string => {
+    const parts = fen.trim().split(/\s+/);
+    if (parts.length < 2) return fen;
+    parts[1] = "w";
+    return parts.join(" ");
+  };
+
+  // Randomization removed per request
+
   return (
     <>
-      <div className="board-root">
-        <div className="left-panel">
-          <Button variant="contained" color="primary" onClick={handleReset}>New Game</Button>
+      {/* LEFT SIDEBAR */}
+      <div className="bg-gray-800 p-4 border-r border-gray-700">
+        <div className="space-y-4">
+          {/* Game Info Section */}
+          <div className="bg-gray-700 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 bg-gray-600 rounded flex items-center justify-center">♔</div>
+              <div>
+                <div className="text-sm font-medium">
+                  {Math.floor(initialTimeMs / (60 * 1000))} min • 
+                  {Math.floor(initialTimeMs / (60 * 1000)) < 3 ? ' Bullet' : 
+                   Math.floor(initialTimeMs / (60 * 1000)) < 10 ? ' Blitz' : 
+                   Math.floor(initialTimeMs / (60 * 1000)) < 30 ? ' Rapid' : ' Classical'}
+                </div>
+                <div className="text-xs text-gray-400">vs Gambitron</div>
+              </div>
+            </div>
+
+            {/* Current Turn Indicator */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                <span className="text-sm">{isPlayersTurn ? 'Your turn' : 'AI turn'}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
-        <div className="board-area">
-          <div className="chess-board">
+      </div>
+
+      {/* CHESS BOARD CONTAINER */}
+      <div className="flex items-center justify-center p-8 bg-gray-850">
+        <div className="chess-board-container">
+          <div className="grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl">
             {vertical
               .slice()
               .reverse()
               .map((row, y) =>
                 horizontal.map((col, x) => {
                   const square = boardState[y][x];
-                  const tileColor = (x + y) % 2 === 0 ? "white" : "black";
+                  const isLight = (y + x) % 2 === 0;
+                  const squareColor = isLight ? "bg-white" : "bg-gray-600";
                   const squareName = `${col}${row}`;
                   const isHighlighted = validMoves.includes(squareName);
+                  const isSelected = selectedSquare === squareName;
+                  const pieceColor: "white" | "black" = square?.color === "w" ? "white" : "black";
 
                   return (
-                    <Tile
+                    <div
                       key={squareName}
-                      tileColor={tileColor}
-                      piece={
-                        square?.type ? `${square.color}${square.type}` : undefined
-                      }
+                      className={`
+                        flex items-center justify-center 
+                        cursor-pointer 
+                        transition-colors duration-150
+                        relative
+                        ${isSelected ? 'bg-blue-200' : squareColor}
+                      `}
+                      style={{ width: "80px", height: "80px" }}
                       onClick={() => handleTileClick(squareName)}
-                      isHighlighted={isHighlighted}
-                    />
+                    >
+                      {/* Move indicator dot for all available moves */}
+                      {isHighlighted && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                        </div>
+                      )}
+                      
+                      {square && <ChessPiece piece={square.type} color={pieceColor} />}
+                    </div>
                   );
                 })
               )}
           </div>
         </div>
-        <div className="side-panel">
-          <div className={`clock ${aiBarActive ? "active" : ""}`}>
-            <div className="label">
-              <span>Gambitron</span>
-              {aiThinking && <span className="badge">Thinking</span>}
-              {aiInCheck && <span className="badge danger">Check</span>}
+      </div>
+
+      {/* RIGHT SIDEBAR */}
+      <div className="bg-gray-800 p-4 border-l border-gray-700 flex items-center justify-center">
+        <div className="space-y-4">
+          {/* Gambitron Timer */}
+          <div className="text-center">
+            <div className="text-4xl font-mono font-bold mb-2">{formatClock(aiTimeMs)}</div>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+              <span className="text-sm">Gambitron</span>
             </div>
-            <div className={`time ${!aiBarActive ? "dimmed" : ""}`}>{formatClock(aiTimeMs)}</div>
+            <div className={`text-white px-3 py-2 rounded text-sm mb-4 ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
+              {aiThinking ? "AI is thinking..." : "Your turn"}
+            </div>
           </div>
-          <div className={`clock ${playerBarActive ? "active" : ""}`}>
-            <div className="label">
-              <span>You</span>
-              {playerInCheck && <span className="badge danger">Check</span>}
+
+          {/* Player Timer */}
+          <div className="text-center">
+            <div className="text-4xl font-mono font-bold mb-2">{formatClock(playerTimeMs)}</div>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+              <span className="text-sm">You</span>
             </div>
-            <div className={`time ${!playerBarActive ? "dimmed" : ""}`}>{formatClock(playerTimeMs)}</div>
+          </div>
+
+
+          {/* Reset Button */}
+          <div className="flex justify-center">
+            <button className="p-2 bg-gray-700 rounded hover:bg-gray-600" onClick={handleReset}>☰</button>
           </div>
         </div>
       </div>
@@ -357,16 +490,113 @@ export default function Board() {
       {/* Promotion Dialog */}
       <Dialog open={promotionOpen} onClose={() => setPromotionOpen(false)}>
         <DialogTitle>Choose promotion</DialogTitle>
-        <DialogContent style={{ display: "flex", gap: 12, marginTop: 8 }}>
-          <Button variant="contained" onClick={() => handlePromotionPick("q")}>Queen</Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("r")}>Rook</Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("b")}>Bishop</Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("n")}>Knight</Button>
+        <DialogContent style={{ display: "flex", gap: 12, marginTop: 8, justifyContent: "center" }}>
+          <Button variant="contained" onClick={() => handlePromotionPick("q")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <img src="/pieces/q-white.svg" alt="Queen" style={{ width: 32, height: 32, marginBottom: 4 }} />
+            <span style={{ fontSize: 12 }}>Queen</span>
+          </Button>
+          <Button variant="contained" onClick={() => handlePromotionPick("r")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <img src="/pieces/r-white.svg" alt="Rook" style={{ width: 32, height: 32, marginBottom: 4 }} />
+            <span style={{ fontSize: 12 }}>Rook</span>
+          </Button>
+          <Button variant="contained" onClick={() => handlePromotionPick("b")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <img src="/pieces/b-white.svg" alt="Bishop" style={{ width: 32, height: 32, marginBottom: 4 }} />
+            <span style={{ fontSize: 12 }}>Bishop</span>
+          </Button>
+          <Button variant="contained" onClick={() => handlePromotionPick("n")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <img src="/pieces/n-white.svg" alt="Knight" style={{ width: 32, height: 32, marginBottom: 4 }} />
+            <span style={{ fontSize: 12 }}>Knight</span>
+          </Button>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPromotionOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Start Game Dialog */}
+      <Dialog open={startOpen} onClose={() => setStartOpen(false)}>
+        <DialogTitle>Start New Game</DialogTitle>
+        <DialogContent>
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontWeight: 600 }}>Time Control (minutes each)</div>
+            <ToggleButtonGroup
+              exclusive
+              value={selectedMinutes}
+              onChange={(_, v) => { if (typeof v === "number") setSelectedMinutes(v); }}
+              color="primary"
+            >
+              <ToggleButton value={1}>1</ToggleButton>
+              <ToggleButton value={3}>3</ToggleButton>
+              <ToggleButton value={5}>5</ToggleButton>
+              <ToggleButton value={10}>10</ToggleButton>
+              <ToggleButton value={15}>15</ToggleButton>
+            </ToggleButtonGroup>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStartOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => { startNewGameWithTime(selectedMinutes); setStartOpen(false); }}>Start</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Admin Testing Panel */}
+      {adminOpen && (
+        <div style={{ position: "fixed", top: 16, left: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 8, width: 360 }}>
+          <Paper elevation={8} style={{ 
+            padding: 16, 
+            background: "rgba(15, 20, 40, 0.95)", 
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: 12,
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+          }}>
+            <div style={{ 
+              fontWeight: 700, 
+              marginBottom: 12, 
+              color: "#ffffff",
+              fontSize: 16
+            }}>Admin: Position Tools</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={() => setAdminOpen(false)}
+                style={{ 
+                  color: "#ffffff", 
+                  borderColor: "rgba(255,255,255,0.3)"
+                }}
+              >Hide</Button>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <TextField 
+                size="small" 
+                label="FEN" 
+                fullWidth 
+                value={fenInput} 
+                onChange={(e) => setFenInput(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    color: "#ffffff",
+                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
+                    "&:hover fieldset": { borderColor: "rgba(255,255,255,0.5)" },
+                    "&.Mui-focused fieldset": { borderColor: "#1976d2" }
+                  },
+                  "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
+                  "& .MuiInputLabel-root.Mui-focused": { color: "#1976d2" }
+                }}
+              />
+              <Button 
+                variant="contained" 
+                size="small" 
+                onClick={async () => { await loadFenAndMaybeAI(fenInput); setPlayerHasMoved(true); }}
+                style={{ 
+                  background: "#1976d2"
+                }}
+              >Load</Button>
+            </div>
+          </Paper>
+        </div>
+      )}
 
       {/* Endgame Dialog */}
       <Dialog open={endgameOpen} onClose={() => setEndgameOpen(false)}>
