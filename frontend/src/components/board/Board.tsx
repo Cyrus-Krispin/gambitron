@@ -64,6 +64,9 @@ export default function Board() {
   const [aiThinking, setAiThinking] = useState<boolean>(false);
   const [playerHasMoved, setPlayerHasMoved] = useState<boolean>(false);
   const [gameEnded, setGameEnded] = useState<boolean>(false);
+  const [gameExplicitlyStarted, setGameExplicitlyStarted] = useState<boolean>(false);
+  const [newGameRequested, setNewGameRequested] = useState<boolean>(false);
+  const [aiRequestController, setAiRequestController] = useState<AbortController | null>(null);
 
   // Start game configuration
   const [startOpen, setStartOpen] = useState<boolean>(false);
@@ -117,7 +120,7 @@ export default function Board() {
   useEffect(() => {
     if (chess.isGameOver() || gameEnded) return;
     const isPlayersTurn = chess.turn() === "w"; // human plays White
-    if (!playerHasMoved) return; // don't start clock until first move is made
+    if (!playerHasMoved || !gameExplicitlyStarted) return; // don't start clock until game is explicitly started and first move is made
     if (!isPlayersTurn || aiThinking) return;
     let last = performance.now();
     const id = window.setInterval(() => {
@@ -127,11 +130,11 @@ export default function Board() {
       setPlayerTimeMs((t) => clampNonNegative(t - delta));
     }, 100);
     return () => window.clearInterval(id);
-  }, [boardState, aiThinking, playerHasMoved, gameEnded]);
+  }, [boardState, aiThinking, playerHasMoved, gameEnded, gameExplicitlyStarted]);
 
   // Run AI clock only while thinking
   useEffect(() => {
-    if (!aiThinking || chess.isGameOver() || gameEnded) return;
+    if (!aiThinking || chess.isGameOver() || gameEnded || !gameExplicitlyStarted) return;
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
@@ -148,12 +151,12 @@ export default function Board() {
       });
     }, 100);
     return () => window.clearInterval(id);
-  }, [aiThinking, gameEnded]);
+  }, [aiThinking, gameEnded, gameExplicitlyStarted]);
 
   // Check for time-based endgames
   useEffect(() => {
     if (chess.isGameOver() || gameEnded) return;
-    if (!playerHasMoved) return; // don't check time until game starts
+    if (!playerHasMoved || !gameExplicitlyStarted) return; // don't check time until game is explicitly started
     if (aiThinking) return; // don't check timeouts while AI is thinking
     
     if (playerTimeMs <= 0 && chess.turn() === "w") {
@@ -163,7 +166,7 @@ export default function Board() {
       // AI ran out of time
       openEndgame("1-0");
     }
-  }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded]);
+  }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded, gameExplicitlyStarted]);
 
   const apiUrlBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
   const adminKeyEnv = useMemo(() => `${import.meta.env.VITE_admin_key || ""}`.trim(), []);
@@ -208,9 +211,24 @@ export default function Board() {
     setEndgameOpen(true);
     setGameEnded(true);
     setAiThinking(false);
+    setGameExplicitlyStarted(false); // Reset the explicit start flag when game ends
   };
 
   const callAIMove = async (fenToSend: string) => {
+    // Don't start AI request if game has already ended or new game requested
+    if (gameEnded || newGameRequested) {
+      return;
+    }
+    
+    // Cancel any existing request
+    if (aiRequestController) {
+      aiRequestController.abort();
+    }
+    
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    setAiRequestController(controller);
+    
     const apiUrl = `${apiUrlBase}?value=${encodeURIComponent(fenToSend)}`;
     setLastFenForRetry(fenToSend);
     setAiThinking(true);
@@ -220,6 +238,7 @@ export default function Board() {
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -229,31 +248,41 @@ export default function Board() {
       const data = await response.json();
       
       // Check if game ended due to timeout while waiting for response
-      if (gameEnded) {
-        return; // Game already ended due to timeout, don't process response
+      if (gameEnded || newGameRequested) {
+        return; // Game already ended due to timeout or new game requested, don't process response
       }
       
       if (data.updated_fen) {
-        chess.load(data.updated_fen);
-        setBoardState(chess.board());
-        saveFen();
+        // Double-check game hasn't ended and new game not requested before updating board
+        if (!gameEnded && !newGameRequested) {
+          chess.load(data.updated_fen);
+          setBoardState(chess.board());
+          saveFen();
+        }
       }
 
-      if (data.result && data.result !== "*") {
-        openEndgame(data.result);
-      } else if (chess.isGameOver()) {
-        openEndgame(computeResult(chess));
+      // Only process game results if game hasn't ended and new game not requested
+      if (!gameEnded && !newGameRequested) {
+        if (data.result && data.result !== "*") {
+          openEndgame(data.result);
+        } else if (chess.isGameOver()) {
+          openEndgame(computeResult(chess));
+        }
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || "Failed to contact backend");
-      setErrorOpen(true);
+      // Don't show error if request was aborted (user clicked New Game)
+      if (error.name !== 'AbortError') {
+        setErrorMessage(error?.message || "Failed to contact backend");
+        setErrorOpen(true);
+      }
     } finally {
       setAiThinking(false);
+      setAiRequestController(null);
     }
   };
 
   const handleRetry = async () => {
-    if (lastFenForRetry) {
+    if (lastFenForRetry && !gameEnded) {
       setErrorOpen(false);
       await callAIMove(lastFenForRetry);
     } else {
@@ -287,12 +316,15 @@ export default function Board() {
         return;
       }
 
-      await callAIMove(chess.fen());
+      // Only call AI if game hasn't ended
+      if (!gameEnded) {
+        await callAIMove(chess.fen());
+      }
     }
   };
 
   const handleTileClick = async (squareName: string) => {
-    if (aiThinking || chess.isGameOver()) return;
+    if (aiThinking || chess.isGameOver() || gameEnded || !gameExplicitlyStarted) return;
     const playersTurn = chess.turn() === "w";
     if (!playersTurn) return;
 
@@ -361,34 +393,24 @@ export default function Board() {
       return;
     }
 
-    await callAIMove(chess.fen());
+    // Only call AI if game hasn't ended
+    if (!gameEnded) {
+      await callAIMove(chess.fen());
+    }
   };
 
-  const isPlayersTurn = chess.turn() === "w" && !aiThinking;
+  const isPlayersTurn = chess.turn() === "w" && !aiThinking && gameExplicitlyStarted;
 
-  const handleReset = () => {
-    setStartOpen(true);
-  };
 
   const startNewGameWithTime = (minutes: number) => {
     const baseMs = Math.max(0.1, minutes) * 60 * 1000;
     
-    // Clear all game state first
-    setGameEnded(true); // Stop all timers immediately
-    setAiThinking(false);
-    setSelectedSquare(null);
-    setValidMoves([]);
-    
-    // Reset chess game
-    chess.reset();
-    setBoardState(chess.board());
-    
-    // Set new game state
+    // Set new game state (board already reset when New Game was clicked)
     setPlayerTimeMs(baseMs);
     setAiTimeMs(baseMs);
     setInitialTimeMs(baseMs);
-    setPlayerHasMoved(false);
-    setGameEnded(false); // Now allow timers to start again
+    setGameExplicitlyStarted(true); // Mark that game has been explicitly started
+    setNewGameRequested(false); // Reset the new game requested flag
     
     if (typeof window !== "undefined") {
       localStorage.removeItem("gambitron_fen");
@@ -410,7 +432,7 @@ export default function Board() {
     setValidMoves([]);
     saveFen();
     // If it's black to move, call AI immediately
-    if (callAIWhenBlack && chess.turn() === "b" && !chess.isGameOver()) {
+    if (callAIWhenBlack && chess.turn() === "b" && !chess.isGameOver() && !gameEnded) {
       await callAIMove(chess.fen());
     }
   };
@@ -426,8 +448,118 @@ export default function Board() {
 
   return (
     <>
-      {/* LEFT SIDEBAR */}
-      <div className="bg-gray-800 p-4 border-r border-gray-700">
+      {/* MOBILE LAYOUT */}
+      <div className="lg:hidden flex flex-col h-screen">
+        {/* MOBILE: AI TIMER AT TOP */}
+        <div className="bg-gray-800 p-2 border-b border-gray-700 flex-shrink-0">
+          <div className="text-center">
+            <div className="text-3xl font-mono font-bold mb-1">{formatClock(aiTimeMs)}</div>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+              <span className="text-sm">Gambitron</span>
+            </div>
+            <div className={`text-white px-3 py-1 rounded text-sm inline-block ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
+              {aiThinking ? "AI is thinking..." : "Your turn"}
+            </div>
+          </div>
+        </div>
+
+        {/* MOBILE: BOARD CONTAINER - Takes remaining space */}
+        <div className="flex-1 flex items-center justify-center p-2 bg-gray-850 min-h-0">
+          <div className="chess-board-container relative w-full h-full flex items-center justify-center">
+            <div className={`grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl w-full max-w-sm aspect-square ${(gameEnded || startOpen) ? 'opacity-50 pointer-events-none' : ''}`}>
+              {vertical
+                .slice()
+                .reverse()
+                .map((row, y) =>
+                  horizontal.map((col, x) => {
+                    const square = boardState[y][x];
+                    const isLight = (y + x) % 2 === 0;
+                    const squareColor = isLight ? "bg-white" : "bg-gray-600";
+                    const squareName = `${col}${row}`;
+                    const isHighlighted = validMoves.includes(squareName);
+                    const isSelected = selectedSquare === squareName;
+                    const pieceColor: "white" | "black" = square?.color === "w" ? "white" : "black";
+
+                    return (
+                      <div
+                        key={squareName}
+                        className={`
+                          ${squareColor}
+                          flex items-center justify-center 
+                          cursor-pointer 
+                          transition-colors duration-150
+                          relative
+                          ${isSelected ? 'bg-blue-200' : ''}
+                          aspect-square
+                        `}
+                        onClick={() => handleTileClick(squareName)}
+                      >
+                        {/* Move indicator dot for all available moves */}
+                        {isHighlighted && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                          </div>
+                        )}
+                        
+                        {square && <ChessPiece piece={square.type} color={pieceColor} isSelected={isSelected} />}
+                      </div>
+                    );
+                  })
+                )}
+            </div>
+            {/* Game Over Overlay - blocks all interactions */}
+            {(gameEnded || startOpen) && (
+              <div className="absolute inset-0 bg-transparent pointer-events-auto z-10"></div>
+            )}
+          </div>
+        </div>
+
+        {/* MOBILE: PLAYER TIMER AT BOTTOM */}
+        <div className="bg-gray-800 p-2 border-t border-gray-700 flex-shrink-0">
+          <div className="text-center">
+            <div className="text-3xl font-mono font-bold mb-1">{formatClock(playerTimeMs)}</div>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+              <span className="text-sm">You</span>
+            </div>
+            <button 
+              className="px-4 py-1 bg-gray-700 rounded hover:bg-gray-600 text-sm" 
+              onClick={() => {
+                // Abort any ongoing AI request
+                if (aiRequestController) {
+                  aiRequestController.abort();
+                }
+                
+                // Set flag to prevent any pending AI responses
+                setNewGameRequested(true);
+                setAiThinking(false);
+                setAiRequestController(null);
+                
+                // Reset board immediately when New Game is clicked
+                chess.reset();
+                setBoardState(chess.board());
+                setSelectedSquare(null);
+                setValidMoves([]);
+                setGameExplicitlyStarted(false);
+                setPlayerHasMoved(false);
+                setGameEnded(false);
+                
+                setStartOpen(true);
+              }}
+            >
+              New Game
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP LAYOUT */}
+      <div className="hidden lg:block">
+        {/* MAIN CONTENT AREA */}
+        <div className="grid grid-cols-[300px_1fr_300px] min-h-screen">
+        {/* DESKTOP: LEFT SIDEBAR */}
+        <div className="hidden lg:block bg-gray-800 p-4 border-r border-gray-700">
         <div className="space-y-4">
           {/* Game Info Section */}
           <div className="bg-gray-700 rounded-lg p-3">
@@ -453,13 +585,43 @@ export default function Board() {
             </div>
           </div>
 
+          {/* New Game Button */}
+          <div className="flex justify-center">
+            <button 
+              className="w-full px-4 py-3 bg-gray-700 rounded-lg hover:bg-gray-600 text-white font-medium transition-colors duration-200 shadow-lg"
+              onClick={() => {
+                // Abort any ongoing AI request
+                if (aiRequestController) {
+                  aiRequestController.abort();
+                }
+                
+                // Set flag to prevent any pending AI responses
+                setNewGameRequested(true);
+                setAiThinking(false);
+                setAiRequestController(null);
+                
+                // Reset board immediately when New Game is clicked
+                chess.reset();
+                setBoardState(chess.board());
+                setSelectedSquare(null);
+                setValidMoves([]);
+                setGameExplicitlyStarted(false);
+                setPlayerHasMoved(false);
+                setGameEnded(false);
+                
+                setStartOpen(true);
+              }}
+            >
+              New Game
+            </button>
+          </div>
         </div>
       </div>
 
       {/* CHESS BOARD CONTAINER */}
-      <div className="flex items-center justify-center p-8 bg-gray-850">
-        <div className="chess-board-container">
-          <div className="grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl">
+      <div className="flex items-center justify-center p-2 lg:p-8 bg-gray-850">
+        <div className="chess-board-container relative">
+          <div className={`grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl w-full max-w-sm lg:max-w-3xl mx-auto aspect-square ${(gameEnded || startOpen) ? 'opacity-50 pointer-events-none' : ''}`}>
             {vertical
               .slice()
               .reverse()
@@ -477,13 +639,14 @@ export default function Board() {
                     <div
                       key={squareName}
                       className={`
+                        ${squareColor}
                         flex items-center justify-center 
                         cursor-pointer 
                         transition-colors duration-150
                         relative
-                        ${isSelected ? 'bg-blue-200' : squareColor}
+                        ${isSelected ? 'bg-blue-200' : ''}
+                        aspect-square
                       `}
-                      style={{ width: "80px", height: "80px" }}
                       onClick={() => handleTileClick(squareName)}
                     >
                       {/* Move indicator dot for all available moves */}
@@ -493,47 +656,47 @@ export default function Board() {
                         </div>
                       )}
                       
-                      {square && <ChessPiece piece={square.type} color={pieceColor} />}
+                      {square && <ChessPiece piece={square.type} color={pieceColor} isSelected={isSelected} />}
                     </div>
                   );
                 })
               )}
           </div>
+          {/* Game Over Overlay - blocks all interactions */}
+          {(gameEnded || startOpen) && (
+            <div className="absolute inset-0 bg-transparent pointer-events-auto z-10"></div>
+          )}
         </div>
       </div>
 
-      {/* RIGHT SIDEBAR */}
-      <div className="bg-gray-800 p-4 border-l border-gray-700 flex items-center justify-center">
-        <div className="space-y-4">
-          {/* Gambitron Timer */}
-          <div className="text-center">
-            <div className="text-4xl font-mono font-bold mb-2">{formatClock(aiTimeMs)}</div>
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span className="text-sm">Gambitron</span>
+        {/* DESKTOP: RIGHT SIDEBAR */}
+        <div className="hidden lg:block bg-gray-800 p-4 border-l border-gray-700 flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center space-y-6 h-full">
+            {/* Gambitron Timer */}
+            <div className="text-center">
+              <div className="text-4xl font-mono font-bold mb-2">{formatClock(aiTimeMs)}</div>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                <span className="text-sm">Gambitron</span>
+              </div>
+              <div className={`text-white px-3 py-2 rounded text-sm mb-4 ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
+                {aiThinking ? "AI is thinking..." : "Your turn"}
+              </div>
             </div>
-            <div className={`text-white px-3 py-2 rounded text-sm mb-4 ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
-              {aiThinking ? "AI is thinking..." : "Your turn"}
+
+            {/* Player Timer */}
+            <div className="text-center">
+              <div className="text-4xl font-mono font-bold mb-2">{formatClock(playerTimeMs)}</div>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                <span className="text-sm">You</span>
+              </div>
             </div>
-          </div>
 
-          {/* Player Timer */}
-          <div className="text-center">
-            <div className="text-4xl font-mono font-bold mb-2">{formatClock(playerTimeMs)}</div>
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span className="text-sm">You</span>
-            </div>
-          </div>
-
-
-          {/* Reset Button */}
-          <div className="flex justify-center">
-            <button className="p-2 bg-gray-700 rounded hover:bg-gray-600" onClick={handleReset}>☰</button>
           </div>
         </div>
       </div>
-
+      </div>
 
       {/* Promotion Dialog */}
       <Dialog open={promotionOpen} onClose={() => setPromotionOpen(false)}>
@@ -562,7 +725,11 @@ export default function Board() {
       </Dialog>
 
       {/* Start Game Dialog */}
-      <Dialog open={startOpen} onClose={() => setStartOpen(false)}>
+      <Dialog 
+        open={startOpen} 
+        onClose={() => {}} // Prevent closing by clicking outside
+        disableEscapeKeyDown // Prevent closing with Escape key
+      >
         <DialogTitle>Start New Game</DialogTitle>
         <DialogContent>
           <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -583,7 +750,6 @@ export default function Board() {
           </div>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setStartOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => { startNewGameWithTime(selectedMinutes); setStartOpen(false); }}>Start</Button>
         </DialogActions>
       </Dialog>
@@ -650,7 +816,8 @@ export default function Board() {
       {/* Endgame Dialog */}
       <Dialog 
         open={endgameOpen} 
-        onClose={() => setEndgameOpen(false)}
+        onClose={() => {}} // Prevent closing by clicking outside
+        disableEscapeKeyDown // Prevent closing with Escape key
         PaperProps={{
           style: {
             backgroundColor: '#1f2937',
@@ -681,6 +848,16 @@ export default function Board() {
         <DialogActions style={{ justifyContent: 'center', padding: '20px' }}>
           <Button 
             onClick={() => {
+              // Reset board immediately when New Game is clicked
+              chess.reset();
+              setBoardState(chess.board());
+              setSelectedSquare(null);
+              setValidMoves([]);
+              setGameExplicitlyStarted(false);
+              setPlayerHasMoved(false);
+              setGameEnded(false);
+              setAiThinking(false);
+              
               setEndgameOpen(false);
               setStartOpen(true);
             }}
