@@ -508,7 +508,6 @@ export default function Board() {
         onNewGame={handleNewGame}
         aiTimeMs={aiTimeMs}
         playerTimeMs={playerTimeMs}
-        aiThinking={aiThinking}
       />
 
       {/* Game Dialogs */}

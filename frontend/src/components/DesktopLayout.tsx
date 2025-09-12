@@ -18,7 +18,6 @@ interface DesktopLayoutProps {
   // Timer props
   aiTimeMs: number;
   playerTimeMs: number;
-  aiThinking: boolean;
 }
 
 const DesktopLayout = ({
@@ -32,8 +31,7 @@ const DesktopLayout = ({
   isPlayersTurn,
   onNewGame,
   aiTimeMs,
-  playerTimeMs,
-  aiThinking
+  playerTimeMs
 }: DesktopLayoutProps) => {
   return (
     <div className="hidden lg:block">
