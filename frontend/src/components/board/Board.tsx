@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Chess, Square } from "chess.js";
-import ChessPiece from "../ChessPiece";
-import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, ToggleButtonGroup, ToggleButton, TextField, Paper } from "@mui/material";
-
-const horizontal = ["a", "b", "c", "d", "e", "f", "g", "h"];
-const vertical = ["1", "2", "3", "4", "5", "6", "7", "8"];
+import { TextField, Paper, Button } from "@mui/material";
+import MobileLayout from "../MobileLayout";
+import DesktopLayout from "../DesktopLayout";
+import GameDialogs from "../GameDialogs";
 
 const chess = new Chess();
 
@@ -27,15 +26,6 @@ function clampNonNegative(ms: number): number {
   return ms < 0 ? 0 : ms;
 }
 
-function formatClock(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
 const START_TIME_MS = 1 * 60 * 1000; // 1 minute
 
 export default function Board() {
@@ -51,6 +41,7 @@ export default function Board() {
   // Endgame dialog
   const [endgameOpen, setEndgameOpen] = useState(false);
   const [endgameResult, setEndgameResult] = useState<string>("");
+  const [endgameReason, setEndgameReason] = useState<string>("");
 
   // Promotion dialog state
   const [promotionOpen, setPromotionOpen] = useState(false);
@@ -144,14 +135,19 @@ export default function Board() {
         const newTime = clampNonNegative(t - delta);
         // Check if AI ran out of time while thinking
         if (newTime <= 0 && t > 0) {
-          openEndgame("1-0"); // Player wins by AI timeout
+          // Abort any ongoing AI request when AI times out
+          if (aiRequestController) {
+            aiRequestController.abort();
+            setAiRequestController(null);
+          }
+          openEndgame("1-0", "timeout"); // Player wins by AI timeout
           setAiThinking(false);
         }
         return newTime;
       });
     }, 100);
     return () => window.clearInterval(id);
-  }, [aiThinking, gameEnded, gameExplicitlyStarted]);
+  }, [aiThinking, gameEnded, gameExplicitlyStarted, aiRequestController]);
 
   // Check for time-based endgames
   useEffect(() => {
@@ -161,10 +157,10 @@ export default function Board() {
     
     if (playerTimeMs <= 0 && chess.turn() === "w") {
       // Player ran out of time
-      openEndgame("0-1");
+      openEndgame("0-1", "timeout");
     } else if (aiTimeMs <= 0 && chess.turn() === "b") {
       // AI ran out of time
-      openEndgame("1-0");
+      openEndgame("1-0", "timeout");
     }
   }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded, gameExplicitlyStarted]);
 
@@ -206,8 +202,9 @@ export default function Board() {
     })();
   }, [adminKeyEnv]);
 
-  const openEndgame = (result: string) => {
+  const openEndgame = (result: string, reason: string = "") => {
     setEndgameResult(result);
+    setEndgameReason(reason);
     setEndgameOpen(true);
     setGameEnded(true);
     setAiThinking(false);
@@ -253,8 +250,9 @@ export default function Board() {
       }
       
       if (data.updated_fen) {
-        // Double-check game hasn't ended and new game not requested before updating board
-        if (!gameEnded && !newGameRequested) {
+        // Triple-check game hasn't ended and new game not requested before updating board
+        // This prevents any pending responses from updating the board after game has ended
+        if (!gameEnded && !newGameRequested && !chess.isGameOver()) {
           chess.load(data.updated_fen);
           setBoardState(chess.board());
           saveFen();
@@ -264,9 +262,9 @@ export default function Board() {
       // Only process game results if game hasn't ended and new game not requested
       if (!gameEnded && !newGameRequested) {
         if (data.result && data.result !== "*") {
-          openEndgame(data.result);
+          openEndgame(data.result, "checkmate");
         } else if (chess.isGameOver()) {
-          openEndgame(computeResult(chess));
+          openEndgame(computeResult(chess), "checkmate");
         }
       }
     } catch (error: any) {
@@ -312,7 +310,7 @@ export default function Board() {
       if (!playerHasMoved) setPlayerHasMoved(true);
 
       if (chess.isGameOver()) {
-        openEndgame(computeResult(chess));
+        openEndgame(computeResult(chess), "checkmate");
         return;
       }
 
@@ -389,7 +387,7 @@ export default function Board() {
     if (!playerHasMoved) setPlayerHasMoved(true);
 
     if (chess.isGameOver()) {
-      openEndgame(computeResult(chess));
+      openEndgame(computeResult(chess), "checkmate");
       return;
     }
 
@@ -400,7 +398,6 @@ export default function Board() {
   };
 
   const isPlayersTurn = chess.turn() === "w" && !aiThinking && gameExplicitlyStarted;
-
 
   const startNewGameWithTime = (minutes: number) => {
     const baseMs = Math.max(0.1, minutes) * 60 * 1000;
@@ -444,315 +441,99 @@ export default function Board() {
     return parts.join(" ");
   };
 
-  // Randomization removed per request
+  const handleNewGame = () => {
+    // Abort any ongoing AI request
+    if (aiRequestController) {
+      aiRequestController.abort();
+    }
+    
+    // Set flag to prevent any pending AI responses
+    setNewGameRequested(true);
+    setAiThinking(false);
+    setAiRequestController(null);
+    
+    // Reset board immediately when New Game is clicked
+    chess.reset();
+    setBoardState(chess.board());
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setGameExplicitlyStarted(false);
+    setPlayerHasMoved(false);
+    setGameEnded(false);
+    
+    setStartOpen(true);
+  };
+
+  const handleNewGameFromEndgame = () => {
+    // Reset board immediately when New Game is clicked
+    chess.reset();
+    setBoardState(chess.board());
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setGameExplicitlyStarted(false);
+    setPlayerHasMoved(false);
+    setGameEnded(false);
+    setAiThinking(false);
+    
+    setEndgameOpen(false);
+    setStartOpen(true);
+  };
 
   return (
     <>
-      {/* MOBILE LAYOUT */}
-      <div className="lg:hidden flex flex-col h-screen">
-        {/* MOBILE: AI TIMER AT TOP */}
-        <div className="bg-gray-800 p-2 border-b border-gray-700 flex-shrink-0">
-          <div className="text-center">
-            <div className="text-3xl font-mono font-bold mb-1">{formatClock(aiTimeMs)}</div>
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span className="text-sm">Gambitron</span>
-            </div>
-            <div className={`text-white px-3 py-1 rounded text-sm inline-block ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
-              {aiThinking ? "AI is thinking..." : "Your turn"}
-            </div>
-          </div>
-        </div>
+      {/* Mobile Layout */}
+      <MobileLayout
+        boardState={boardState}
+        selectedSquare={selectedSquare}
+        validMoves={validMoves}
+        gameEnded={gameEnded}
+        startOpen={startOpen}
+        onTileClick={handleTileClick}
+        aiTimeMs={aiTimeMs}
+        playerTimeMs={playerTimeMs}
+        isPlayersTurn={isPlayersTurn}
+        onNewGame={handleNewGame}
+      />
 
-        {/* MOBILE: BOARD CONTAINER - Takes remaining space */}
-        <div className="flex-1 flex items-center justify-center p-2 bg-gray-850 min-h-0">
-          <div className="chess-board-container relative w-full h-full flex items-center justify-center">
-            <div className={`grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl w-full max-w-sm aspect-square ${(gameEnded || startOpen) ? 'opacity-50 pointer-events-none' : ''}`}>
-              {vertical
-                .slice()
-                .reverse()
-                .map((row, y) =>
-                  horizontal.map((col, x) => {
-                    const square = boardState[y][x];
-                    const isLight = (y + x) % 2 === 0;
-                    const squareColor = isLight ? "bg-white" : "bg-gray-600";
-                    const squareName = `${col}${row}`;
-                    const isHighlighted = validMoves.includes(squareName);
-                    const isSelected = selectedSquare === squareName;
-                    const pieceColor: "white" | "black" = square?.color === "w" ? "white" : "black";
+      {/* Desktop Layout */}
+      <DesktopLayout
+        boardState={boardState}
+        selectedSquare={selectedSquare}
+        validMoves={validMoves}
+        gameEnded={gameEnded}
+        startOpen={startOpen}
+        onTileClick={handleTileClick}
+        initialTimeMs={initialTimeMs}
+        isPlayersTurn={isPlayersTurn}
+        onNewGame={handleNewGame}
+        aiTimeMs={aiTimeMs}
+        playerTimeMs={playerTimeMs}
+        aiThinking={aiThinking}
+      />
 
-                    return (
-                      <div
-                        key={squareName}
-                        className={`
-                          ${squareColor}
-                          flex items-center justify-center 
-                          cursor-pointer 
-                          transition-colors duration-150
-                          relative
-                          ${isSelected ? 'bg-blue-200' : ''}
-                          aspect-square
-                        `}
-                        onClick={() => handleTileClick(squareName)}
-                      >
-                        {/* Move indicator dot for all available moves */}
-                        {isHighlighted && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                          </div>
-                        )}
-                        
-                        {square && <ChessPiece piece={square.type} color={pieceColor} isSelected={isSelected} />}
-                      </div>
-                    );
-                  })
-                )}
-            </div>
-            {/* Game Over Overlay - blocks all interactions */}
-            {(gameEnded || startOpen) && (
-              <div className="absolute inset-0 bg-transparent pointer-events-auto z-10"></div>
-            )}
-          </div>
-        </div>
-
-        {/* MOBILE: PLAYER TIMER AT BOTTOM */}
-        <div className="bg-gray-800 p-2 border-t border-gray-700 flex-shrink-0">
-          <div className="text-center">
-            <div className="text-3xl font-mono font-bold mb-1">{formatClock(playerTimeMs)}</div>
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span className="text-sm">You</span>
-            </div>
-            <button 
-              className="px-4 py-1 bg-gray-700 rounded hover:bg-gray-600 text-sm" 
-              onClick={() => {
-                // Abort any ongoing AI request
-                if (aiRequestController) {
-                  aiRequestController.abort();
-                }
-                
-                // Set flag to prevent any pending AI responses
-                setNewGameRequested(true);
-                setAiThinking(false);
-                setAiRequestController(null);
-                
-                // Reset board immediately when New Game is clicked
-                chess.reset();
-                setBoardState(chess.board());
-                setSelectedSquare(null);
-                setValidMoves([]);
-                setGameExplicitlyStarted(false);
-                setPlayerHasMoved(false);
-                setGameEnded(false);
-                
-                setStartOpen(true);
-              }}
-            >
-              New Game
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* DESKTOP LAYOUT */}
-      <div className="hidden lg:block">
-        {/* MAIN CONTENT AREA */}
-        <div className="grid grid-cols-[300px_1fr_300px] min-h-screen">
-        {/* DESKTOP: LEFT SIDEBAR */}
-        <div className="hidden lg:block bg-gray-800 p-4 border-r border-gray-700">
-        <div className="space-y-4">
-          {/* Game Info Section */}
-          <div className="bg-gray-700 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-gray-600 rounded flex items-center justify-center">♔</div>
-              <div>
-                <div className="text-sm font-medium">
-                  {Math.floor(initialTimeMs / (60 * 1000))} min • 
-                  {Math.floor(initialTimeMs / (60 * 1000)) < 3 ? ' Bullet' : 
-                   Math.floor(initialTimeMs / (60 * 1000)) < 10 ? ' Blitz' : 
-                   Math.floor(initialTimeMs / (60 * 1000)) < 30 ? ' Rapid' : ' Classical'}
-                </div>
-                <div className="text-xs text-gray-400">vs Gambitron</div>
-              </div>
-            </div>
-
-            {/* Current Turn Indicator */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                <span className="text-sm">{isPlayersTurn ? 'Your turn' : 'AI turn'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* New Game Button */}
-          <div className="flex justify-center">
-            <button 
-              className="w-full px-4 py-3 bg-gray-700 rounded-lg hover:bg-gray-600 text-white font-medium transition-colors duration-200 shadow-lg"
-              onClick={() => {
-                // Abort any ongoing AI request
-                if (aiRequestController) {
-                  aiRequestController.abort();
-                }
-                
-                // Set flag to prevent any pending AI responses
-                setNewGameRequested(true);
-                setAiThinking(false);
-                setAiRequestController(null);
-                
-                // Reset board immediately when New Game is clicked
-                chess.reset();
-                setBoardState(chess.board());
-                setSelectedSquare(null);
-                setValidMoves([]);
-                setGameExplicitlyStarted(false);
-                setPlayerHasMoved(false);
-                setGameEnded(false);
-                
-                setStartOpen(true);
-              }}
-            >
-              New Game
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* CHESS BOARD CONTAINER */}
-      <div className="flex items-center justify-center p-2 lg:p-8 bg-gray-850">
-        <div className="chess-board-container relative">
-          <div className={`grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl w-full max-w-sm lg:max-w-3xl mx-auto aspect-square ${(gameEnded || startOpen) ? 'opacity-50 pointer-events-none' : ''}`}>
-            {vertical
-              .slice()
-              .reverse()
-              .map((row, y) =>
-                horizontal.map((col, x) => {
-                  const square = boardState[y][x];
-                  const isLight = (y + x) % 2 === 0;
-                  const squareColor = isLight ? "bg-white" : "bg-gray-600";
-                  const squareName = `${col}${row}`;
-                  const isHighlighted = validMoves.includes(squareName);
-                  const isSelected = selectedSquare === squareName;
-                  const pieceColor: "white" | "black" = square?.color === "w" ? "white" : "black";
-
-                  return (
-                    <div
-                      key={squareName}
-                      className={`
-                        ${squareColor}
-                        flex items-center justify-center 
-                        cursor-pointer 
-                        transition-colors duration-150
-                        relative
-                        ${isSelected ? 'bg-blue-200' : ''}
-                        aspect-square
-                      `}
-                      onClick={() => handleTileClick(squareName)}
-                    >
-                      {/* Move indicator dot for all available moves */}
-                      {isHighlighted && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                        </div>
-                      )}
-                      
-                      {square && <ChessPiece piece={square.type} color={pieceColor} isSelected={isSelected} />}
-                    </div>
-                  );
-                })
-              )}
-          </div>
-          {/* Game Over Overlay - blocks all interactions */}
-          {(gameEnded || startOpen) && (
-            <div className="absolute inset-0 bg-transparent pointer-events-auto z-10"></div>
-          )}
-        </div>
-      </div>
-
-        {/* DESKTOP: RIGHT SIDEBAR */}
-        <div className="hidden lg:block bg-gray-800 p-4 border-l border-gray-700 flex items-center justify-center">
-          <div className="flex flex-col items-center justify-center space-y-6 h-full">
-            {/* Gambitron Timer */}
-            <div className="text-center">
-              <div className="text-4xl font-mono font-bold mb-2">{formatClock(aiTimeMs)}</div>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <div className={`w-2 h-2 rounded-full ${!isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                <span className="text-sm">Gambitron</span>
-              </div>
-              <div className={`text-white px-3 py-2 rounded text-sm mb-4 ${aiThinking ? 'bg-blue-600' : 'bg-green-600'}`}>
-                {aiThinking ? "AI is thinking..." : "Your turn"}
-              </div>
-            </div>
-
-            {/* Player Timer */}
-            <div className="text-center">
-              <div className="text-4xl font-mono font-bold mb-2">{formatClock(playerTimeMs)}</div>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <div className={`w-2 h-2 rounded-full ${isPlayersTurn ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                <span className="text-sm">You</span>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-      </div>
-
-      {/* Promotion Dialog */}
-      <Dialog open={promotionOpen} onClose={() => setPromotionOpen(false)}>
-        <DialogTitle>Choose promotion</DialogTitle>
-        <DialogContent style={{ display: "flex", gap: 12, marginTop: 8, justifyContent: "center" }}>
-          <Button variant="contained" onClick={() => handlePromotionPick("q")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <img src="/pieces/q-white.svg" alt="Queen" style={{ width: 32, height: 32, marginBottom: 4 }} />
-            <span style={{ fontSize: 12 }}>Queen</span>
-          </Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("r")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <img src="/pieces/r-white.svg" alt="Rook" style={{ width: 32, height: 32, marginBottom: 4 }} />
-            <span style={{ fontSize: 12 }}>Rook</span>
-          </Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("b")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <img src="/pieces/b-white.svg" alt="Bishop" style={{ width: 32, height: 32, marginBottom: 4 }} />
-            <span style={{ fontSize: 12 }}>Bishop</span>
-          </Button>
-          <Button variant="contained" onClick={() => handlePromotionPick("n")} style={{ padding: 8, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <img src="/pieces/n-white.svg" alt="Knight" style={{ width: 32, height: 32, marginBottom: 4 }} />
-            <span style={{ fontSize: 12 }}>Knight</span>
-          </Button>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPromotionOpen(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Start Game Dialog */}
-      <Dialog 
-        open={startOpen} 
-        onClose={() => {}} // Prevent closing by clicking outside
-        disableEscapeKeyDown // Prevent closing with Escape key
-      >
-        <DialogTitle>Start New Game</DialogTitle>
-        <DialogContent>
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontWeight: 600 }}>Time Control</div>
-            <ToggleButtonGroup
-              exclusive
-              value={selectedMinutes}
-              onChange={(_, v) => { if (typeof v === "number") setSelectedMinutes(v); }}
-              color="primary"
-            >
-              <ToggleButton value={1}>1</ToggleButton>
-              <ToggleButton value={3}>3</ToggleButton>
-              <ToggleButton value={5}>5</ToggleButton>
-              <ToggleButton value={10}>10</ToggleButton>
-              <ToggleButton value={15}>15</ToggleButton>
-              <ToggleButton value={0.167}>10s</ToggleButton>
-            </ToggleButtonGroup>
-          </div>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => { startNewGameWithTime(selectedMinutes); setStartOpen(false); }}>Start</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Game Dialogs */}
+      <GameDialogs
+        promotionOpen={promotionOpen}
+        onPromotionClose={() => setPromotionOpen(false)}
+        onPromotionPick={handlePromotionPick}
+        startOpen={startOpen}
+        selectedMinutes={selectedMinutes}
+        onMinutesChange={setSelectedMinutes}
+        onStartGame={() => { startNewGameWithTime(selectedMinutes); setStartOpen(false); }}
+        endgameOpen={endgameOpen}
+        endgameResult={endgameResult}
+        endgameReason={endgameReason}
+        onEndgameClose={() => {
+          setEndgameOpen(false);
+          // Don't reset the game, just close the dialog to view the final position
+        }}
+        onNewGameFromEndgame={handleNewGameFromEndgame}
+        errorOpen={errorOpen}
+        errorMessage={errorMessage}
+        onErrorClose={() => setErrorOpen(false)}
+        onRetry={handleRetry}
+        hasRetry={!!lastFenForRetry}
+      />
 
       {/* Admin Testing Panel */}
       {adminOpen && (
@@ -812,90 +593,6 @@ export default function Board() {
           </Paper>
         </div>
       )}
-
-      {/* Endgame Dialog */}
-      <Dialog 
-        open={endgameOpen} 
-        onClose={() => {}} // Prevent closing by clicking outside
-        disableEscapeKeyDown // Prevent closing with Escape key
-        PaperProps={{
-          style: {
-            backgroundColor: '#1f2937',
-            color: 'white',
-            borderRadius: '12px',
-            border: '1px solid #374151'
-          }
-        }}
-      >
-        <DialogTitle style={{ color: 'white', textAlign: 'center', fontSize: '24px', fontWeight: 'bold' }}>
-          {endgameResult === "1-0" ? "🎉 You Win!" : 
-           endgameResult === "0-1" ? "😔 You Lose" : 
-           "🤝 Draw"}
-        </DialogTitle>
-        <DialogContent style={{ textAlign: 'center', padding: '20px' }}>
-          <div style={{ fontSize: '16px', marginBottom: '16px' }}>
-            {endgameResult === "1-0" && chess.isCheckmate() && "Checkmate! You outplayed Gambitron!"}
-            {endgameResult === "1-0" && !chess.isCheckmate() && "Gambitron ran out of time!"}
-            {endgameResult === "0-1" && chess.isCheckmate() && "Checkmate! Gambitron got you!"}
-            {endgameResult === "0-1" && !chess.isCheckmate() && "You ran out of time!"}
-            {endgameResult === "1/2-1/2" && chess.isStalemate() && "Stalemate! No legal moves available."}
-            {endgameResult === "1/2-1/2" && !chess.isStalemate() && "Draw! The game ends in a tie."}
-          </div>
-          <div style={{ fontSize: '14px', color: '#9ca3af' }}>
-            Result: {endgameResult}
-          </div>
-        </DialogContent>
-        <DialogActions style={{ justifyContent: 'center', padding: '20px' }}>
-          <Button 
-            onClick={() => {
-              // Reset board immediately when New Game is clicked
-              chess.reset();
-              setBoardState(chess.board());
-              setSelectedSquare(null);
-              setValidMoves([]);
-              setGameExplicitlyStarted(false);
-              setPlayerHasMoved(false);
-              setGameEnded(false);
-              setAiThinking(false);
-              
-              setEndgameOpen(false);
-              setStartOpen(true);
-            }}
-            style={{ 
-              backgroundColor: '#3b82f6', 
-              color: 'white',
-              padding: '10px 24px',
-              borderRadius: '8px',
-              fontWeight: 'bold'
-            }}
-          >
-            New Game
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Error Snackbar */}
-      <Snackbar
-        open={errorOpen}
-        autoHideDuration={6000}
-        onClose={() => setErrorOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setErrorOpen(false)}
-          severity="error"
-          action={
-            lastFenForRetry ? (
-              <Button color="inherit" size="small" onClick={handleRetry}>
-                Retry
-              </Button>
-            ) : undefined
-          }
-          sx={{ width: "100%" }}
-        >
-          {errorMessage}
-        </Alert>
-      </Snackbar>
     </>
   );
 }
