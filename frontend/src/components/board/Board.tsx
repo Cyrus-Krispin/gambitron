@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Chess, Square } from "chess.js";
-import { TextField, Paper, Button } from "@mui/material";
 import MobileLayout from "../MobileLayout";
 import DesktopLayout from "../DesktopLayout";
 import GameDialogs from "../GameDialogs";
@@ -64,8 +63,15 @@ export default function Board() {
   const [selectedMinutes, setSelectedMinutes] = useState<number>(5);
 
   // Admin test panel
-  const [adminOpen, setAdminOpen] = useState<boolean>(false);
   const [fenInput, setFenInput] = useState<string>("");
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(false);
+
+  // Check if we're on admin route
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const path = window.location.pathname;
+    setIsAdminRoute(path === "/admin");
+  }, []);
 
   // Persisted load on mount
   useEffect(() => {
@@ -107,8 +113,9 @@ export default function Board() {
     localStorage.setItem("gambitron_clock_ai", String(aiTimeMs));
   }, [aiTimeMs]);
 
-  // Run player clock when it's player's turn and game not over
+  // Run player clock when it's player's turn and game not over (disabled for admin)
   useEffect(() => {
+    if (isAdminRoute) return; // Disable timers in admin view
     if (chess.isGameOver() || gameEnded) return;
     const isPlayersTurn = chess.turn() === "w"; // human plays White
     if (!playerHasMoved || !gameExplicitlyStarted) return; // don't start clock until game is explicitly started and first move is made
@@ -121,10 +128,11 @@ export default function Board() {
       setPlayerTimeMs((t) => clampNonNegative(t - delta));
     }, 100);
     return () => window.clearInterval(id);
-  }, [boardState, aiThinking, playerHasMoved, gameEnded, gameExplicitlyStarted]);
+  }, [boardState, aiThinking, playerHasMoved, gameEnded, gameExplicitlyStarted, isAdminRoute]);
 
-  // Run AI clock only while thinking
+  // Run AI clock only while thinking (disabled for admin)
   useEffect(() => {
+    if (isAdminRoute) return; // Disable timers in admin view
     if (!aiThinking || chess.isGameOver() || gameEnded || !gameExplicitlyStarted) return;
     let last = performance.now();
     const id = window.setInterval(() => {
@@ -147,10 +155,11 @@ export default function Board() {
       });
     }, 100);
     return () => window.clearInterval(id);
-  }, [aiThinking, gameEnded, gameExplicitlyStarted, aiRequestController]);
+  }, [aiThinking, gameEnded, gameExplicitlyStarted, aiRequestController, isAdminRoute]);
 
-  // Check for time-based endgames
+  // Check for time-based endgames (disabled for admin)
   useEffect(() => {
+    if (isAdminRoute) return; // Disable time checks in admin view
     if (chess.isGameOver() || gameEnded) return;
     if (!playerHasMoved || !gameExplicitlyStarted) return; // don't check time until game is explicitly started
     if (aiThinking) return; // don't check timeouts while AI is thinking
@@ -162,45 +171,15 @@ export default function Board() {
       // AI ran out of time
       openEndgame("1-0", "timeout");
     }
-  }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded, gameExplicitlyStarted]);
+  }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded, gameExplicitlyStarted, isAdminRoute]);
 
   const apiUrlBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
-  const adminKeyEnv = useMemo(() => `${import.meta.env.VITE_admin_key || ""}`.trim(), []);
 
   const saveFen = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("gambitron_fen", chess.fen());
     }
   };
-
-  // Reveal admin panel via URL key match ?adminKey=... and optional ?fen=...; default to White to move
-  useEffect(() => {
-    (async () => {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const key = params.get("adminKey");
-        const fenParam = params.get("fen");
-        const keepTurn = params.get("keepTurn");
-        const preserveTurn = keepTurn === "1" || keepTurn === "true";
-        if (adminKeyEnv && key && key === adminKeyEnv) {
-          setAdminOpen(true);
-          if (fenParam && fenParam.length > 0) {
-            setFenInput(fenParam);
-            const fenToLoad = preserveTurn ? fenParam : forceWhiteToMoveFen(fenParam);
-            await loadFenAndMaybeAI(fenToLoad, /*callAIWhenBlack*/ preserveTurn);
-            setPlayerHasMoved(false);
-            // Remove FEN from URL after loading
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete("fen");
-            newUrl.searchParams.delete("keepTurn");
-            window.history.replaceState({}, "", newUrl.toString());
-          }
-        }
-      } catch (_) {
-        // ignore URL parse issues
-      }
-    })();
-  }, [adminKeyEnv]);
 
   const openEndgame = (result: string, reason: string = "") => {
     setEndgameResult(result);
@@ -322,7 +301,9 @@ export default function Board() {
   };
 
   const handleTileClick = async (squareName: string) => {
-    if (aiThinking || chess.isGameOver() || gameEnded || !gameExplicitlyStarted) return;
+    if (aiThinking || chess.isGameOver() || gameEnded) return;
+    // In admin view, allow moves without gameExplicitlyStarted
+    if (!isAdminRoute && !gameExplicitlyStarted) return;
     const playersTurn = chess.turn() === "w";
     if (!playersTurn) return;
 
@@ -397,7 +378,7 @@ export default function Board() {
     }
   };
 
-  const isPlayersTurn = chess.turn() === "w" && !aiThinking && gameExplicitlyStarted;
+  const isPlayersTurn = chess.turn() === "w" && !aiThinking && (gameExplicitlyStarted || isAdminRoute);
 
   const startNewGameWithTime = (minutes: number) => {
     const baseMs = Math.max(0.1, minutes) * 60 * 1000;
@@ -417,10 +398,13 @@ export default function Board() {
   };
 
   const loadFenAndMaybeAI = async (fen: string, callAIWhenBlack: boolean = true) => {
+    console.log("Loading FEN:", fen); // Debug log
     try {
       chess.load(fen);
+      console.log("FEN loaded successfully, turn:", chess.turn()); // Debug log
     } catch (e) {
-      setErrorMessage("Invalid FEN");
+      console.error("FEN loading error:", e); // Debug log
+      setErrorMessage(`Invalid FEN: ${e instanceof Error ? e.message : 'Unknown error'}`);
       setErrorOpen(true);
       return;
     }
@@ -428,18 +412,20 @@ export default function Board() {
     setSelectedSquare(null);
     setValidMoves([]);
     saveFen();
+    
+    // For admin view, always set game as started and player as moved
+    if (isAdminRoute) {
+      setGameExplicitlyStarted(true);
+      setPlayerHasMoved(true);
+    }
+    
     // If it's black to move, call AI immediately
     if (callAIWhenBlack && chess.turn() === "b" && !chess.isGameOver() && !gameEnded) {
+      console.log("Calling AI move for black turn"); // Debug log
       await callAIMove(chess.fen());
     }
   };
 
-  const forceWhiteToMoveFen = (fen: string): string => {
-    const parts = fen.trim().split(/\s+/);
-    if (parts.length < 2) return fen;
-    parts[1] = "w";
-    return parts.join(" ");
-  };
 
   const handleNewGame = () => {
     // Abort any ongoing AI request
@@ -508,6 +494,17 @@ export default function Board() {
         onNewGame={handleNewGame}
         aiTimeMs={aiTimeMs}
         playerTimeMs={playerTimeMs}
+        isAdminRoute={isAdminRoute}
+        fenInput={fenInput}
+        onFenInputChange={setFenInput}
+        onLoadFen={async () => { 
+          if (!fenInput.trim()) {
+            setErrorMessage("Please enter a FEN string");
+            setErrorOpen(true);
+            return;
+          }
+          await loadFenAndMaybeAI(fenInput.trim()); 
+        }}
       />
 
       {/* Game Dialogs */}
@@ -534,64 +531,6 @@ export default function Board() {
         hasRetry={!!lastFenForRetry}
       />
 
-      {/* Admin Testing Panel */}
-      {adminOpen && (
-        <div style={{ position: "fixed", top: 16, left: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 8, width: 360 }}>
-          <Paper elevation={8} style={{ 
-            padding: 16, 
-            background: "rgba(15, 20, 40, 0.95)", 
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 12,
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
-          }}>
-            <div style={{ 
-              fontWeight: 700, 
-              marginBottom: 12, 
-              color: "#ffffff",
-              fontSize: 16
-            }}>Admin: Position Tools</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <Button 
-                variant="outlined" 
-                size="small" 
-                onClick={() => setAdminOpen(false)}
-                style={{ 
-                  color: "#ffffff", 
-                  borderColor: "rgba(255,255,255,0.3)"
-                }}
-              >Hide</Button>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <TextField 
-                size="small" 
-                label="FEN" 
-                fullWidth 
-                value={fenInput} 
-                onChange={(e) => setFenInput(e.target.value)}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    color: "#ffffff",
-                    "& fieldset": { borderColor: "rgba(255,255,255,0.3)" },
-                    "&:hover fieldset": { borderColor: "rgba(255,255,255,0.5)" },
-                    "&.Mui-focused fieldset": { borderColor: "#1976d2" }
-                  },
-                  "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.7)" },
-                  "& .MuiInputLabel-root.Mui-focused": { color: "#1976d2" }
-                }}
-              />
-              <Button 
-                variant="contained" 
-                size="small" 
-                onClick={async () => { await loadFenAndMaybeAI(fenInput); setPlayerHasMoved(true); }}
-                style={{ 
-                  background: "#1976d2"
-                }}
-              >Load</Button>
-            </div>
-          </Paper>
-        </div>
-      )}
     </>
   );
 }

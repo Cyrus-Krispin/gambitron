@@ -2,9 +2,10 @@ interface GameInfoProps {
   initialTimeMs: number;
   isPlayersTurn: boolean;
   onNewGame: () => void;
+  isAdminRoute?: boolean;
 }
 
-const GameInfo = ({ initialTimeMs, isPlayersTurn, onNewGame }: GameInfoProps) => {
+const GameInfo = ({ initialTimeMs, isPlayersTurn, onNewGame, isAdminRoute = false }: GameInfoProps) => {
   const getTimeControlLabel = (minutes: number) => {
     if (minutes < 3) return 'Bullet';
     if (minutes < 10) return 'Blitz';
@@ -19,9 +20,11 @@ const GameInfo = ({ initialTimeMs, isPlayersTurn, onNewGame }: GameInfoProps) =>
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 bg-gray-600 rounded flex items-center justify-center">♔</div>
           <div>
-            <div className="text-sm font-medium">
-              {Math.floor(initialTimeMs / (60 * 1000))} min • {getTimeControlLabel(Math.floor(initialTimeMs / (60 * 1000)))}
-            </div>
+            {!isAdminRoute && (
+              <div className="text-sm font-medium">
+                {Math.floor(initialTimeMs / (60 * 1000))} min • {getTimeControlLabel(Math.floor(initialTimeMs / (60 * 1000)))}
+              </div>
+            )}
             <div className="text-xs text-gray-400">vs Gambitron</div>
           </div>
         </div>
