@@ -5,8 +5,8 @@
 ![Gambitron Demo](frontend/public/readme/readme-gif-gambitron.gif)
 
 <div align="center">
-  <a href="https://gambitron.vercel.app">
-    <img src="https://img.shields.io/badge/PLAY%20VS%20GAMBITRON-FF6B6B?style=for-the-badge&logoColor=white&labelColor=FFD700&color=000000&fontSize=20px" alt="Play vs Gambitron" style="height: 80px; width: 400px; border-radius: 15px; border: 3px solid white; box-shadow: 0 8px 16px rgba(0,0,0,0.3); transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"/>
+  <a href="https://gambitron.vercel.app" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/PLAY%20VS%20GAMBITRON-000000?style=for-the-badge&logoColor=000000&labelColor=FFFFFF&color=FFFFFF&fontSize=20px" alt="Play vs Gambitron" style="height: 80px; width: 400px; border-radius: 15px; border: 3px solid #333; box-shadow: 0 8px 16px rgba(0,0,0,0.3); transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"/>
   </a>
 </div>
 
