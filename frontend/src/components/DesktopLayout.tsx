@@ -1,5 +1,6 @@
 import ChessBoard from "./ChessBoard";
 import GameInfo from "./GameInfo";
+import SocialLinks from "./SocialLinks";
 
 interface DesktopLayoutProps {
   // Board props
@@ -48,6 +49,11 @@ const DesktopLayout = ({
       <div className={`grid min-h-screen ${isAdminRoute ? 'grid-cols-[300px_1fr]' : 'grid-cols-[300px_1fr_300px]'}`}>
         {/* Left Sidebar */}
         <div className="hidden lg:block bg-gray-800 p-4 border-r border-gray-700 flex flex-col h-full">
+          {/* Social Links - Top Left */}
+          <div className="mb-4">
+            <SocialLinks />
+          </div>
+          
           <GameInfo
             initialTimeMs={initialTimeMs}
             isPlayersTurn={isPlayersTurn}
