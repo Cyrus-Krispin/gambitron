@@ -1,12 +1,17 @@
-# 🏆 Gambitron - Advanced Chess AI Engine
+# 🏆 Gambitron - Chess AI Bot
 
 <div align="center">
 
 ![Gambitron Demo](frontend/public/readme/readme-gif-gambitron.gif)
 
+<div align="center">
+  <a href="https://gambitron.vercel.app">
+    <img src="https://img.shields.io/badge/PLAY%20VS%20GAMBITRON-FF6B6B?style=for-the-badge&logoColor=white&labelColor=FFD700&color=000000&fontSize=20px" alt="Play vs Gambitron" style="height: 80px; width: 400px; border-radius: 15px; border: 3px solid white; box-shadow: 0 8px 16px rgba(0,0,0,0.3); transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"/>
+  </a>
+</div>
+
 **A sophisticated chess AI engine built with modern web technologies and advanced algorithms**
 
-[![Live Demo](https://img.shields.io/badge/Play%20Now-Live%20Demo-brightgreen?style=for-the-badge)](https://gambitron.vercel.app)
 [![React](https://img.shields.io/badge/React-18.3.1-blue?style=for-the-badge&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Python](https://img.shields.io/badge/Python-3.x-green?style=for-the-badge&logo=python)](https://python.org)
@@ -311,12 +316,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **AWS Lambda** - Serverless computing platform
 - **Vercel** - Frontend deployment platform
 
-## 📞 Contact
 
-**Cyrus Krispin**
-- GitHub: [@Cyrus-Krispin](https://github.com/Cyrus-Krispin)
-- LinkedIn: [cyruskrispin](https://www.linkedin.com/in/cyruskrispin/)
-- LeetCode: [cyrus-krispin](https://leetcode.com/u/cyrus-krispin/)
 
 ---
 
@@ -324,6 +324,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ready to challenge Gambitron?** [Play Now!](https://gambitron.vercel.app)
 
-*Built with ❤️ and advanced AI algorithms*
+
 
 </div>
