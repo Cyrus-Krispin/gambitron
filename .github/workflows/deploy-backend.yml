@@ -1,0 +1,42 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stderr: true
+          script: |
+            set -e
+            cd /opt/gambitron
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Create venv if needed
+            python3 -m venv venv 2>/dev/null || true
+            . venv/bin/activate
+            pip install -q -r backend/requirements.txt
+
+            # Create .env from secrets (first deploy or if missing)
+            if [ ! -f .env ]; then
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+              echo "ALLOWED_ORIGINS=*" >> .env
+            fi
+
+            sudo systemctl restart gambitron
+            echo "Deploy complete. Checking health..."
+            sleep 3
+            curl -sf http://localhost:8000/health || echo "Health check failed"

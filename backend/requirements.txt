@@ -1,0 +1,4 @@
+fastapi
+uvicorn[standard]
+chess
+python-dotenv
