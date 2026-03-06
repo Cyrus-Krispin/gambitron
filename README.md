@@ -96,21 +96,10 @@ frontend/
 ### Backend Architecture
 
 ```
-lambda-backend/
-├── backend.py                     # FastAPI application with chess logic
-├── lambda.py                      # AWS Lambda handler
-├── lambda-layer/
-│   └── python/
-│       └── chess/                 # Python chess library
-│           ├── __init__.py
-│           ├── engine.py          # Chess engine implementation
-│           ├── gaviota.py         # Endgame tablebase support
-│           ├── pgn.py             # PGN format support
-│           ├── polyglot.py        # Opening book support
-│           ├── svg.py             # SVG rendering
-│           ├── syzygy.py          # Syzygy tablebase
-│           └── variant.py         # Chess variant support
-└── requirements.txt               # Python dependencies
+backend/
+├── main.py                        # FastAPI app, /health, FEN endpoint
+├── chess_engine.py                # Minimax AI with piece-square tables
+└── requirements.txt               # fastapi, uvicorn, chess
 ```
 
 ## 🧮 AI Algorithm Deep Dive
@@ -190,7 +179,7 @@ The AI optimizes move selection by:
 
 1. **Navigate to backend directory**:
    ```bash
-   cd lambda-backend
+   cd backend
    ```
 
 2. **Create virtual environment**:

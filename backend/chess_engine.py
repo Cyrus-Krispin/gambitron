@@ -1,22 +1,6 @@
-import json
+"""Chess AI engine - minimax with alpha-beta pruning."""
 import chess
-import chess.engine 
 
-
-def lambda_handler(event, context):
-    fen_str = event['queryStringParameters']['value']
-    updated_fen, result = get_best_move(fen_str)
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'OPTIONS, POST',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        },
-        'body': json.dumps({'updated_fen': updated_fen, 'result': result})
-    }
-
-    
 PAWN_VALUE = 100
 KNIGHT_VALUE = 320
 BISHOP_VALUE = 330
@@ -112,6 +96,7 @@ CENTER_SQUARES = {chess.D4, chess.E4, chess.D5, chess.E5}
 CENTER_PAWN_BONUS = 30
 ADVANCED_PAWN_MULTIPLIER = 3
 
+
 def evaluate_board_state(board_state: chess.Board) -> float:
     if board_state.is_checkmate():
         return -999999 if board_state.turn == chess.WHITE else 999999
@@ -190,6 +175,7 @@ def evaluate_board_state(board_state: chess.Board) -> float:
     evaluation_score += 0.1 * mobility_score
     return evaluation_score
 
+
 def minimax(board_state: chess.Board, depth: int, alpha: float, beta: float, is_maximizing: bool) -> float:
     if depth == 0 or board_state.is_game_over():
         return evaluate_board_state(board_state)
@@ -216,13 +202,16 @@ def minimax(board_state: chess.Board, depth: int, alpha: float, beta: float, is_
                 break
         return min_eval
 
+
 def select_best_move(board_state: chess.Board, depth: int):
     legal_moves_list = list(board_state.legal_moves)
     if not legal_moves_list:
         return None
+
     def capture_value(move: chess.Move):
         captured_piece = board_state.piece_at(move.to_square)
         return material_values[captured_piece.piece_type] if captured_piece else 0
+
     legal_moves_list.sort(key=capture_value, reverse=True)
     if board_state.turn == chess.WHITE:
         best_evaluation = float('-inf')
@@ -247,6 +236,7 @@ def select_best_move(board_state: chess.Board, depth: int):
                 best_move_found = move
         return best_move_found
 
+
 def get_best_move(fen_str: str, depth: int = 3):
     try:
         board_state = chess.Board(fen_str)
@@ -258,4 +248,4 @@ def get_best_move(fen_str: str, depth: int = 3):
     if chosen_move is None:
         raise ValueError("No valid moves found.")
     board_state.push(chosen_move)
-    return board_state.fen(), board_state.result()
+    return {"updated_fen": board_state.fen(), "result": board_state.result()}

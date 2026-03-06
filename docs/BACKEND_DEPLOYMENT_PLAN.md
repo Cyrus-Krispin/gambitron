@@ -8,7 +8,7 @@ Detailed plan for backend changes and GitHub Actions deployment to EC2.
 
 ### 1.1 Create New Backend Structure
 
-Create `backend/` directory (separate from `lambda-backend/` for now; can deprecate lambda later).
+Create `backend/` directory (self-contained FastAPI app).
 
 ```
 backend/
@@ -40,7 +40,7 @@ backend/
 
 #### Task 2: `chess_engine.py` — Extract AI Logic
 
-- [ ] Copy from `lambda-backend/backend.py`: all constants, `evaluate_board_state`, `minimax`, `select_best_move`, `get_best_move`
+- [ ] Chess logic in `chess_engine.py`: `evaluate_board_state`, `minimax`, `select_best_move`, `get_best_move`
 - [ ] Return type: `{"updated_fen": str, "result": str}` plus optionally `chosen_move` (chess.Move) for SAN/from/to
 - [ ] Add helper to get SAN and from/to squares from the move (for DB storage)
 
