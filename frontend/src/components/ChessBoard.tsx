@@ -1,106 +1,170 @@
-import { useEffect, useState } from "react";
-import ChessPiece from "./ChessPiece";
+import React, { useEffect, useState } from "react";
+import { ChessPiece } from "./ChessPiece";
+import type { PlayerColor } from "@/hooks/useGame";
+
+interface PieceInfo {
+  type: string;
+  color: "w" | "b";
+}
 
 interface ChessBoardProps {
-  boardState: any[][];
+  boardState: (PieceInfo | null)[][];
   selectedSquare: string | null;
   validMoves: string[];
   gameEnded: boolean;
   startOpen: boolean;
-  onTileClick: (squareName: string) => void;
+  orientation: PlayerColor;
+  onTileClick: (square: string) => void;
+  HORIZONTAL: string[];
+  VERTICAL: string[];
 }
 
-const horizontal = ["a", "b", "c", "d", "e", "f", "g", "h"];
-const vertical = ["1", "2", "3", "4", "5", "6", "7", "8"];
-
-const ChessBoard = ({ boardState, selectedSquare, validMoves, gameEnded, startOpen, onTileClick }: ChessBoardProps) => {
-  const [boardSize, setBoardSize] = useState<number>(320); // Default size
+export function ChessBoard({
+  boardState,
+  selectedSquare,
+  validMoves,
+  gameEnded,
+  startOpen,
+  orientation,
+  onTileClick,
+  HORIZONTAL,
+  VERTICAL,
+}: ChessBoardProps) {
+  const [size, setSize] = useState(320);
+  const labelSize = 18;
 
   useEffect(() => {
-    const calculateBoardSize = () => {
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const isMobile = vw < 1024; // lg breakpoint
-      
-      if (isMobile) {
-        // Mobile: Use viewport width with some padding, but ensure minimum size
-        const availableWidth = vw - 32; // Account for padding
-        const size = Math.max(280, Math.min(availableWidth, 400));
-        setBoardSize(size);
-      } else {
-        // Desktop: Use viewport height, accounting for sidebars and padding
-        // Reserve space for sidebars (300px each) and padding (80px total for safety)
-        const availableHeight = vh - 80; // Account for padding with buffer
-        const availableWidth = vw - 600 - 80; // Account for sidebars and padding with buffer
-        const size = Math.min(availableHeight, availableWidth);
-        setBoardSize(Math.max(400, Math.min(size, 800))); // Min 400px, max 800px
-      }
+    const update = () => {
+      const vv = window.visualViewport;
+      const vw = vv ? vv.width : window.innerWidth;
+      const vh = vv ? vv.height : window.innerHeight;
+      // Reserve: header 56px, padding 32px, capture ~50px, controls ~56px, gaps ~24px
+      const reservedH = 64;
+      const reservedV = 220;
+      const availW = vw - reservedH;
+      const availH = vh - reservedV;
+      // Board + labels: width = size + labelSize, height = size + labelSize (file labels only on bottom)
+      const maxByW = availW - labelSize;
+      const maxByH = availH - labelSize;
+      const maxSize = Math.min(maxByW, maxByH);
+      const clamped = Math.max(200, Math.min(maxSize, 560));
+      setSize(Math.floor(clamped));
     };
-
-    calculateBoardSize();
-    window.addEventListener('resize', calculateBoardSize);
-    return () => window.removeEventListener('resize', calculateBoardSize);
+    update();
+    const viewport = window.visualViewport;
+    if (viewport) {
+      viewport.addEventListener("resize", update);
+      viewport.addEventListener("scroll", update);
+      return () => {
+        viewport.removeEventListener("resize", update);
+        viewport.removeEventListener("scroll", update);
+      };
+    }
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
+  const tileSize = size / 8;
+  const flipped = orientation === "black";
+  const fileLabels = flipped ? [...HORIZONTAL].reverse() : HORIZONTAL;
+
+  const gap = labelSize;
+
   return (
-    <div className="chess-board-container relative">
-      <div 
-        className={`grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden shadow-2xl mx-auto ${startOpen ? 'opacity-50 pointer-events-none' : ''}`}
-        style={{ 
-          width: `${boardSize}px`, 
-          height: `${boardSize}px` 
+    <div className="relative">
+      <div
+        className="relative transition-opacity duration-300 font-mono text-xs text-muted-foreground"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `${gap}px repeat(8, ${tileSize}px)`,
+          gridTemplateRows: `repeat(8, ${tileSize}px) ${gap}px`,
+          width: size + gap,
+          minHeight: size + gap,
+          opacity: startOpen ? 0.5 : 1,
+          pointerEvents: startOpen ? "none" : "auto",
         }}
       >
-        {vertical
-          .slice()
-          .reverse()
-          .map((row, y) =>
-            horizontal.map((col, x) => {
-              const square = boardState[y][x];
-              const isLight = (y + x) % 2 === 0;
-              const squareColor = isLight ? "bg-white" : "bg-gray-600";
+        {/* Rank labels + board rows */}
+        {VERTICAL.map((row, rowIdx) => (
+          <React.Fragment key={row}>
+            {/* Rank label (1-8) - centered on board row */}
+            <div
+              className="flex items-center justify-center"
+              style={{ gridColumn: 1, gridRow: rowIdx + 1 }}
+            >
+              {row}
+            </div>
+            {/* Board squares */}
+            {fileLabels.map((col, colIdx) => {
+              const boardColIdx = flipped ? 7 - colIdx : colIdx;
               const squareName = `${col}${row}`;
-              const isHighlighted = validMoves.includes(squareName);
+              const boardRowIdx = flipped ? 7 - rowIdx : rowIdx;
+              const piece = boardState[boardRowIdx]?.[boardColIdx] as PieceInfo | null | undefined;
+              const isLight = (rowIdx + colIdx) % 2 === 0;
               const isSelected = selectedSquare === squareName;
-              const pieceColor: "white" | "black" = square?.color === "w" ? "white" : "black";
+              const isHighlight = validMoves.includes(squareName);
 
               return (
-                <div
+                <button
                   key={squareName}
+                  type="button"
+                  onClick={() => !gameEnded && onTileClick(squareName)}
                   className={`
-                    ${squareColor}
-                    flex items-center justify-center 
-                    cursor-pointer 
+                    relative flex items-center justify-center
                     transition-colors duration-150
-                    relative
-                    ${isSelected ? 'bg-blue-200' : ''}
-                    aspect-square
+                    ${isLight ? "bg-[var(--board-light)]" : "bg-[var(--board-dark)]"}
+                    ${isSelected ? "bg-[#CDD26A] ring-2 ring-inset ring-primary/40" : ""}
+                    ${isHighlight && !piece ? "" : ""}
+                    ${isHighlight && piece ? "ring-2 ring-inset ring-primary/50" : ""}
                   `}
-                  onClick={() => {
-                    if (!gameEnded) {
-                      onTileClick(squareName);
-                    }
-                  }}
+                  style={{ gridColumn: colIdx + 2, gridRow: rowIdx + 1, width: tileSize, height: tileSize }}
                 >
-                  {/* Move indicator dot for all available moves */}
-                  {isHighlighted && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                    </div>
+                  {isHighlight && !piece && (
+                    <div className="absolute w-1/4 h-1/4 rounded-full bg-foreground/20" />
                   )}
-                  
-                  {square && <ChessPiece piece={square.type} color={pieceColor} isSelected={isSelected} />}
-                </div>
+                  {piece && (
+                    <ChessPiece
+                      piece={piece.type}
+                      color={piece.color === "w" ? "white" : "black"}
+                      isSelected={isSelected}
+                      size={tileSize * 0.85}
+                    />
+                  )}
+                </button>
               );
-            })
-          )}
+            })}
+          </React.Fragment>
+        ))}
+
+        {/* Bottom-left corner: empty */}
+        <div style={{ gridColumn: 1, gridRow: 9 }} />
+        {/* File labels (a-h) - only on bottom, flipped when black */}
+        {fileLabels.map((col, i) => (
+          <div
+            key={`file-${col}`}
+            className="flex items-center justify-center"
+            style={{ gridColumn: i + 2, gridRow: 9 }}
+          >
+            {col}
+          </div>
+        ))}
       </div>
-      {/* Start Dialog Overlay - blocks all interactions */}
+
+      {/* Board border - overlay on the 8x8 grid area */}
+      <div
+        className="absolute pointer-events-none overflow-hidden rounded-md shadow-lg border border-border/60"
+        style={{
+          left: gap,
+          top: 0,
+          width: size,
+          height: size,
+        }}
+        aria-hidden
+      />
+
       {startOpen && (
-        <div className="absolute inset-0 bg-transparent pointer-events-auto z-10"></div>
+        <div className="absolute inset-0 z-10 pointer-events-auto" aria-hidden />
       )}
     </div>
   );
-};
-
-export default ChessBoard;
+}

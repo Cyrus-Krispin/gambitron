@@ -1,20 +1,24 @@
-import React from "react";
-import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
-import Board from "./components/board/Board";
+import { BrowserRouter as Router, Route, Switch, Redirect } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import Landing from "./pages/Landing";
+import Play from "./pages/Play";
+import About from "./pages/About";
+import Game from "./pages/Game";
 import { Analytics } from "@vercel/analytics/react";
 
-const App: React.FC = () => {
+export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-900 text-white">
+      <Layout>
         <Switch>
-          <Route exact path="/" component={Board} />
-          <Route exact path="/admin" component={Board} />
+          <Route exact path="/" component={Landing} />
+          <Route exact path="/play" render={() => <Redirect to="/" />} />
+          <Route exact path="/play/:minutes" component={Play} />
+          <Route exact path="/about" component={About} />
+          <Route exact path="/admin" component={Game} />
         </Switch>
-        <Analytics />
-      </div>
+      </Layout>
+      <Analytics />
     </Router>
   );
-};
-
-export default App;
+}
