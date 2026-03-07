@@ -1,4 +1,4 @@
-import { useParams, useLocation, Link } from "react-router-dom";
+import { useParams, useLocation, useHistory, Link } from "react-router-dom";
 import { useGame } from "@/hooks/useGame";
 import { ChessBoard } from "@/components/ChessBoard";
 import { CaptureDisplay } from "@/components/CaptureDisplay";
@@ -9,14 +9,26 @@ import { Button } from "@/components/ui/button";
 const VALID_MINUTES = [1, 3, 5, 10, 15, 30];
 
 export default function Play() {
-  const { minutes } = useParams<{ minutes: string }>();
+  const { gameId } = useParams<{ gameId: string }>();
   const location = useLocation();
-  const parsed = minutes ? parseInt(minutes, 10) : NaN;
-  const initialMinutes = VALID_MINUTES.includes(parsed) ? parsed : 5;
+  const history = useHistory();
   const search = new URLSearchParams(location.search);
+  const minutesParam = search.get("minutes");
+  const parsed = minutesParam ? parseInt(minutesParam, 10) : NaN;
+  const initialMinutes = VALID_MINUTES.includes(parsed) ? parsed : 5;
   const colorParam = search.get("color");
   const initialColor = colorParam === "white" || colorParam === "black" ? colorParam : undefined;
-  const game = useGame(initialMinutes, initialColor);
+  const initialGameState = (location.state as { gameState?: { fen: string; timeControlMs: number; playerColor: "white" | "black" } })?.gameState;
+
+  const game = useGame({
+    gameId: gameId ?? null,
+    initialMinutes,
+    initialColor,
+    initialGameState,
+    onGameCreated: (id, state) => {
+      history.replace(`/play/${id}`, { gameState: state });
+    },
+  });
 
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] flex flex-col">
@@ -97,7 +109,11 @@ export default function Play() {
                 <Link to="/">Home</Link>
               </Button>
               <Button size="sm" asChild>
-                <Link to="/">New Game</Link>
+                <Link
+                  to={`/play/new?minutes=${Math.max(1, Math.round(game.initialTimeMs / 60000))}${game.playerColor ? `&color=${game.playerColor}` : ""}`}
+                >
+                  New Game
+                </Link>
               </Button>
             </div>
           </div>

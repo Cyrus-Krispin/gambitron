@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { playMoveSound } from "@/utils/sounds";
+import {
+  createGameSocket,
+  sendMessage,
+  type GameStartedMessage,
+  type AIMoveMessage,
+  type GameEndedMessage,
+  type ErrorMessage,
+} from "@/lib/websocket";
 
 export type PlayerColor = "white" | "black";
 
@@ -22,7 +30,23 @@ function clamp(ms: number): number {
   return ms < 0 ? 0 : ms;
 }
 
-export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
+export interface UseGameOptions {
+  gameId: string | null;
+  initialMinutes?: number;
+  initialColor?: PlayerColor;
+  initialGameState?: { fen: string; timeControlMs: number; playerColor: PlayerColor };
+  onGameCreated?: (gameId: string, gameState: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => void;
+}
+
+export function useGame(options?: UseGameOptions) {
+  const {
+    gameId = null,
+    initialMinutes = 5,
+    initialColor,
+    initialGameState,
+    onGameCreated,
+  } = options ?? {};
+
   const [chess] = useState(() => new Chess());
   const [boardState, setBoardState] = useState(chess.board());
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
@@ -47,15 +71,18 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
   const [playerHasMoved, setPlayerHasMoved] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
-  const [newGameRequested, setNewGameRequested] = useState(false);
-  const [aiAbortController, setAiAbortController] = useState<AbortController | null>(null);
 
-  const [startOpen, setStartOpen] = useState(!initialColor);
-  const [selectedMinutes] = useState(initialMinutes ?? 5);
-  const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? "white");
+  const [startOpen, setStartOpen] = useState(!initialColor && !initialGameState);
+  const [selectedMinutes] = useState(initialMinutes);
+  const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? initialGameState?.playerColor ?? "white");
 
   const [fenInput, setFenInput] = useState("");
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin";
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const currentGameIdRef = useRef<string | null>(gameId);
+  const onGameCreatedRef = useRef(onGameCreated);
+  onGameCreatedRef.current = onGameCreated;
 
   const apiBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
 
@@ -71,55 +98,101 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
     setGameStarted(false);
   }, []);
 
-  const callAIMove = useCallback(
+  const callAIViaRest = useCallback(
     async (fen: string) => {
-      if (gameEnded || newGameRequested) return;
-      if (aiAbortController) aiAbortController.abort();
-      const controller = new AbortController();
-      setAiAbortController(controller);
-      setLastFenForRetry(fen);
       setAiThinking(true);
+      setLastFenForRetry(fen);
       try {
         const res = await fetch(`${apiBase}?value=${encodeURIComponent(fen)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
         });
         if (!res.ok) throw new Error(`Backend error: ${res.status}`);
         const data = await res.json();
-        if (gameEnded || newGameRequested) return;
-        if (data.updated_fen && !gameEnded && !newGameRequested && !chess.isGameOver()) {
+        if (data.updated_fen) {
           chess.load(data.updated_fen);
           setBoardState(chess.board());
           setPlayerHasMoved(true);
           playMoveSound();
         }
-        if (!gameEnded && !newGameRequested) {
-          if (data.result && data.result !== "*") openEndgame(data.result, "checkmate");
-          else if (chess.isGameOver()) openEndgame(computeResult(chess), "checkmate");
+        if (data.result && data.result !== "*") {
+          openEndgame(data.result, "checkmate");
         }
-      } catch (err: unknown) {
-        if ((err as Error).name !== "AbortError") {
-          setErrorMessage((err as Error)?.message || "Failed to contact backend");
-          setErrorOpen(true);
-        }
+      } catch (err) {
+        setErrorMessage((err as Error)?.message || "Failed to contact backend");
+        setErrorOpen(true);
       } finally {
         setAiThinking(false);
-        setAiAbortController(null);
       }
     },
-    [apiBase, chess, gameEnded, newGameRequested, openEndgame, aiAbortController]
+    [apiBase, chess, openEndgame]
+  );
+
+  const sendPlayerMove = useCallback(
+    (fen: string, san?: string, from?: string, to?: string) => {
+      if (isAdmin) {
+        callAIViaRest(fen);
+        return;
+      }
+      const gid = currentGameIdRef.current;
+      if (!gid || gid === "new") return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setErrorMessage("WebSocket not connected");
+        setErrorOpen(true);
+        return;
+      }
+      setAiThinking(true);
+      setLastFenForRetry(fen);
+      sendMessage(ws, {
+        type: "player_move",
+        gameId: gid,
+        fen,
+        san,
+        from,
+        to,
+      });
+    },
+    [isAdmin, callAIViaRest]
+  );
+
+  const sendPromotionMove = useCallback(
+    (fen: string, from: string, to: string, promotion: "q" | "r" | "b" | "n") => {
+      if (isAdmin) {
+        callAIViaRest(fen);
+        return;
+      }
+      const gid = currentGameIdRef.current;
+      if (!gid || gid === "new") return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setErrorMessage("WebSocket not connected");
+        setErrorOpen(true);
+        return;
+      }
+      setAiThinking(true);
+      setLastFenForRetry(fen);
+      sendMessage(ws, {
+        type: "promotion_move",
+        gameId: gid,
+        fen,
+        from,
+        to,
+        promotion,
+      });
+    },
+    [isAdmin, callAIViaRest]
   );
 
   const handleRetry = useCallback(() => {
     if (lastFenForRetry && !gameEnded) {
       setErrorOpen(false);
-      callAIMove(lastFenForRetry);
+      sendPlayerMove(lastFenForRetry);
     } else setErrorOpen(false);
-  }, [lastFenForRetry, gameEnded, callAIMove]);
+  }, [lastFenForRetry, gameEnded, sendPlayerMove]);
 
   const handlePromotionPick = useCallback(
-    async (piece: "q" | "r" | "b" | "n") => {
+    (piece: "q" | "r" | "b" | "n") => {
       if (!pendingPromotionFrom || !pendingPromotionTo) {
         setPromotionOpen(false);
         return;
@@ -143,9 +216,11 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
         return;
       }
       const fen = chess.fen();
-      await callAIMove(fen);
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
+      sendPromotionMove(fen, from, to, piece);
     },
-    [chess, pendingPromotionFrom, pendingPromotionTo, playerHasMoved, openEndgame, callAIMove]
+    [chess, pendingPromotionFrom, pendingPromotionTo, playerHasMoved, openEndgame, sendPromotionMove]
   );
 
   const isPromotionSquare = useCallback(
@@ -157,7 +232,7 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
   );
 
   const handleTileClick = useCallback(
-    async (squareName: string) => {
+    (squareName: string) => {
       if (aiThinking || chess.isGameOver() || gameEnded) return;
       if (!isAdmin && !gameStarted) return;
       if (chess.turn() !== playerTurn) return;
@@ -177,7 +252,12 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
         return;
       }
 
-      const verboseMoves = chess.moves({ square: selectedSquare as Square, verbose: true }) as { to: string; piece: string }[];
+      const verboseMoves = chess.moves({ square: selectedSquare as Square, verbose: true }) as {
+        to: string;
+        piece: string;
+        from: string;
+        san: string;
+      }[];
       const targetMove = verboseMoves.find((m) => m.to === squareName);
 
       if (!targetMove) {
@@ -210,26 +290,176 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
         openEndgame(computeResult(chess), "checkmate");
         return;
       }
-      await callAIMove(chess.fen());
+      const fen = chess.fen();
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
+      const san = (move as { san: string }).san;
+      sendPlayerMove(fen, san, from, to);
     },
-    [chess, selectedSquare, aiThinking, gameEnded, gameStarted, isAdmin, playerHasMoved, openEndgame, callAIMove, playerTurn, isPromotionSquare]
+    [
+      chess,
+      selectedSquare,
+      aiThinking,
+      gameEnded,
+      gameStarted,
+      isAdmin,
+      playerHasMoved,
+      openEndgame,
+      sendPlayerMove,
+      playerTurn,
+      isPromotionSquare,
+    ]
   );
 
-  const startNewGameWithTime = useCallback(
-    async (minutes: number, color: PlayerColor) => {
-      const baseMs = minutes * 60 * 1000;
-      setPlayerTimeMs(baseMs);
-      setAiTimeMs(baseMs);
-      setInitialTimeMs(baseMs);
+  const startNewGameViaWebSocket = useCallback(
+    (minutes: number, color: PlayerColor) => {
       setPlayerColor(color);
-      setGameStarted(true);
-      setNewGameRequested(false);
+      setStartOpen(false);
       setPlayerHasMoved(color === "white");
-      if (color === "black") {
-        await callAIMove(chess.fen());
-      }
+      setGameEnded(false);
+      setGameStarted(true);
+
+      const ws = createGameSocket(
+        (msg) => {
+          if (msg.type === "game_started") {
+            const m = msg as GameStartedMessage;
+            currentGameIdRef.current = m.gameId;
+            setPlayerTimeMs(m.timeControlMs);
+            setAiTimeMs(m.timeControlMs);
+            setInitialTimeMs(m.timeControlMs);
+            try {
+              chess.load(m.fen);
+            } catch {
+              chess.reset();
+            }
+            setBoardState(chess.board());
+            setSelectedSquare(null);
+            setValidMoves([]);
+            onGameCreatedRef.current?.(m.gameId, {
+              fen: m.fen,
+              timeControlMs: m.timeControlMs,
+              playerColor: color,
+            });
+            if (color === "black") {
+              sendMessage(wsRef.current!, {
+                type: "request_ai_move",
+                gameId: m.gameId,
+                fen: m.fen,
+              });
+              setAiThinking(true);
+            }
+          } else if (msg.type === "ai_move") {
+            const m = msg as AIMoveMessage;
+            setAiThinking(false);
+            if (m.updatedFen) {
+              try {
+                chess.load(m.updatedFen);
+                setBoardState(chess.board());
+                setPlayerHasMoved(true);
+                playMoveSound();
+              } catch {
+                // ignore
+              }
+            }
+            if (m.result && m.result !== "*") {
+              openEndgame(m.result, "checkmate");
+            }
+          } else if (msg.type === "game_ended") {
+            const m = msg as GameEndedMessage;
+            setAiThinking(false);
+            if (m.updatedFen) {
+              try {
+                chess.load(m.updatedFen);
+                setBoardState(chess.board());
+                playMoveSound();
+              } catch {
+                // ignore
+              }
+            }
+            openEndgame(m.result, m.termination);
+          } else if (msg.type === "error") {
+            setAiThinking(false);
+            setErrorMessage((msg as ErrorMessage).message);
+            setErrorOpen(true);
+          }
+        },
+        () => {
+          // onOpen - send start_game
+          sendMessage(wsRef.current!, {
+            type: "start_game",
+            timeControlMs: minutes * 60 * 1000,
+            playerColor: color,
+          });
+        }
+      );
+      wsRef.current = ws;
     },
-    [chess, callAIMove]
+    [chess, openEndgame]
+  );
+
+  const connectToExistingGame = useCallback(
+    (gid: string, gameState: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      currentGameIdRef.current = gid;
+      setPlayerTimeMs(gameState.timeControlMs);
+      setAiTimeMs(gameState.timeControlMs);
+      setInitialTimeMs(gameState.timeControlMs);
+      setPlayerColor(gameState.playerColor);
+      setGameStarted(true);
+      setGameEnded(false);
+      setStartOpen(false);
+      try {
+        chess.load(gameState.fen);
+      } catch {
+        chess.reset();
+      }
+      setBoardState(chess.board());
+      setSelectedSquare(null);
+      setValidMoves([]);
+      setPlayerHasMoved(true);
+
+      const ws = createGameSocket((msg) => {
+        if (msg.type === "ai_move") {
+          const m = msg as AIMoveMessage;
+          setAiThinking(false);
+          if (m.updatedFen) {
+            try {
+              chess.load(m.updatedFen);
+              setBoardState(chess.board());
+              setPlayerHasMoved(true);
+              playMoveSound();
+            } catch {
+              // ignore
+            }
+          }
+          if (m.result && m.result !== "*") {
+            openEndgame(m.result, "checkmate");
+          }
+        } else if (msg.type === "game_ended") {
+          const m = msg as GameEndedMessage;
+          setAiThinking(false);
+          if (m.updatedFen) {
+            try {
+              chess.load(m.updatedFen);
+              setBoardState(chess.board());
+              playMoveSound();
+            } catch {
+              // ignore
+            }
+          }
+          openEndgame(m.result, m.termination);
+        } else if (msg.type === "error") {
+          setAiThinking(false);
+          setErrorMessage((msg as ErrorMessage).message);
+          setErrorOpen(true);
+        }
+      });
+      wsRef.current = ws;
+    },
+    [chess, openEndgame]
   );
 
   const loadFenAndMaybeAI = useCallback(
@@ -248,20 +478,41 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
         setGameStarted(true);
         setPlayerHasMoved(true);
       }
-      if (callAI && !chess.isGameOver() && !gameEnded) {
-        if (isAdmin || chess.turn() === aiTurn) {
-          await callAIMove(chess.fen());
+      if (callAI && !chess.isGameOver() && !gameEnded && isAdmin && chess.turn() === aiTurn) {
+        setAiThinking(true);
+        try {
+          const res = await fetch(`${apiBase}?value=${encodeURIComponent(fen)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+          const data = await res.json();
+          if (data.updated_fen) {
+            chess.load(data.updated_fen);
+            setBoardState(chess.board());
+            playMoveSound();
+          }
+          if (data.result && data.result !== "*") {
+            openEndgame(data.result, "checkmate");
+          }
+        } catch (err) {
+          setErrorMessage((err as Error)?.message || "Failed to contact backend");
+          setErrorOpen(true);
+        } finally {
+          setAiThinking(false);
         }
       }
     },
-    [chess, isAdmin, gameEnded, callAIMove, aiTurn]
+    [chess, isAdmin, gameEnded, apiBase, openEndgame, aiTurn]
   );
 
   const handleNewGame = useCallback(() => {
-    if (aiAbortController) aiAbortController.abort();
-    setNewGameRequested(true);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    currentGameIdRef.current = null;
     setAiThinking(false);
-    setAiAbortController(null);
     chess.reset();
     setBoardState(chess.board());
     setSelectedSquare(null);
@@ -270,9 +521,14 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
     setPlayerHasMoved(false);
     setGameEnded(false);
     setStartOpen(true);
-  }, [chess, aiAbortController]);
+  }, [chess]);
 
   const handleNewGameFromEndgame = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    currentGameIdRef.current = null;
     chess.reset();
     setBoardState(chess.board());
     setSelectedSquare(null);
@@ -285,16 +541,21 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
     setStartOpen(true);
   }, [chess]);
 
-  const initialStartDone = useRef(false);
   useEffect(() => {
-    if (initialColor && initialMinutes && !initialStartDone.current) {
-      initialStartDone.current = true;
-      setStartOpen(false);
-      startNewGameWithTime(initialMinutes, initialColor);
-    } else if (!initialColor) {
-      setStartOpen(true);
+    currentGameIdRef.current = gameId;
+  }, [gameId]);
+
+  useEffect(() => {
+    if (gameId && gameId !== "new" && initialGameState) {
+      connectToExistingGame(gameId, initialGameState);
+      return () => {
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+      };
     }
-  }, [initialColor, initialMinutes, startNewGameWithTime]);
+  }, [gameId, connectToExistingGame, initialGameState?.fen]);
 
   useEffect(() => {
     if (isAdmin || chess.isGameOver() || gameEnded) return;
@@ -316,7 +577,6 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
       setAiTimeMs((t) => {
         const newTime = clamp(t - (now - last));
         if (newTime <= 0 && t > 0) {
-          if (aiAbortController) aiAbortController.abort();
           openEndgame(aiTurn === "w" ? "0-1" : "1-0", "timeout");
           setAiThinking(false);
         }
@@ -325,7 +585,7 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
       last = now;
     }, 100);
     return () => window.clearInterval(id);
-  }, [aiThinking, gameEnded, gameStarted, aiAbortController, isAdmin, chess, openEndgame, aiTurn]);
+  }, [aiThinking, gameEnded, gameStarted, isAdmin, chess, openEndgame, aiTurn]);
 
   useEffect(() => {
     if (isAdmin || chess.isGameOver() || gameEnded || !playerHasMoved || !gameStarted || aiThinking) return;
@@ -351,6 +611,34 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
     return { byWhite, byBlack };
   }, [chess, boardState]);
 
+  const startNewGameWithTimeRest = useCallback(
+    async (minutes: number, color: PlayerColor) => {
+      const baseMs = minutes * 60 * 1000;
+      setPlayerTimeMs(baseMs);
+      setAiTimeMs(baseMs);
+      setInitialTimeMs(baseMs);
+      setPlayerColor(color);
+      setGameStarted(true);
+      setPlayerHasMoved(color === "white");
+      if (color === "black") {
+        await callAIViaRest(chess.fen());
+      }
+    },
+    [chess, callAIViaRest]
+  );
+
+  const onStartGame = useCallback(
+    (color: PlayerColor) => {
+      setStartOpen(false);
+      if (isAdmin) {
+        startNewGameWithTimeRest(selectedMinutes, color);
+      } else {
+        startNewGameViaWebSocket(selectedMinutes, color);
+      }
+    },
+    [selectedMinutes, isAdmin, startNewGameViaWebSocket, startNewGameWithTimeRest]
+  );
+
   return {
     boardState,
     selectedSquare,
@@ -360,10 +648,7 @@ export function useGame(initialMinutes?: number, initialColor?: PlayerColor) {
     playerColor,
     gameEnded,
     startOpen,
-    onStartGame: async (color: PlayerColor) => {
-      setStartOpen(false);
-      await startNewGameWithTime(selectedMinutes, color);
-    },
+    onStartGame,
     promotionOpen,
     handlePromotionPick,
     onPromotionClose: () => setPromotionOpen(false),

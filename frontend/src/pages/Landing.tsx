@@ -16,12 +16,12 @@ export default function Landing() {
   const history = useHistory();
 
   const handleColorPick = (minutes: number, color: "white" | "black") => {
-    history.push(`/play/${minutes}?color=${color}`);
+    history.push(`/play/new?minutes=${minutes}&color=${color}`);
   };
 
   const handleRandomPick = (minutes: number) => {
     const color = Math.random() < 0.5 ? "white" : "black";
-    history.push(`/play/${minutes}?color=${color}`);
+    history.push(`/play/new?minutes=${minutes}&color=${color}`);
   };
 
   return (

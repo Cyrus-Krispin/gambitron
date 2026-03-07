@@ -13,7 +13,12 @@ export default function App() {
         <Switch>
           <Route exact path="/" component={Landing} />
           <Route exact path="/play" render={() => <Redirect to="/" />} />
-          <Route exact path="/play/:minutes" component={Play} />
+          <Route exact path="/play/:gameId" component={Play} />
+          <Route
+            exact
+            path="/play/:minutes"
+            render={({ match }) => <Redirect to={`/play/new?minutes=${match.params.minutes}`} />}
+          />
           <Route exact path="/about" component={About} />
           <Route exact path="/admin" component={Game} />
         </Switch>

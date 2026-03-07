@@ -243,9 +243,24 @@ def get_best_move(fen_str: str, depth: int = 3):
     except ValueError as e:
         raise ValueError("Invalid FEN string.") from e
     if board_state.is_game_over():
-        return {"updated_fen": board_state.fen(), "result": board_state.result()}
+        return {
+            "updated_fen": board_state.fen(),
+            "result": board_state.result(),
+            "san": None,
+            "from_square": None,
+            "to_square": None,
+        }
     chosen_move = select_best_move(board_state, depth)
     if chosen_move is None:
         raise ValueError("No valid moves found.")
+    san = board_state.san(chosen_move)
+    from_square = chess.square_name(chosen_move.from_square)
+    to_square = chess.square_name(chosen_move.to_square)
     board_state.push(chosen_move)
-    return {"updated_fen": board_state.fen(), "result": board_state.result()}
+    return {
+        "updated_fen": board_state.fen(),
+        "result": board_state.result(),
+        "san": san,
+        "from_square": from_square,
+        "to_square": to_square,
+    }

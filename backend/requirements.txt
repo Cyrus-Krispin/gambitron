@@ -1,4 +1,5 @@
 fastapi
 uvicorn[standard]
 chess
+asyncpg
 python-dotenv
