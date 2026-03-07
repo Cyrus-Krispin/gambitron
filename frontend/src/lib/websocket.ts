@@ -84,12 +84,11 @@ export type ServerMessage =
   | ErrorMessage
   | PongMessage;
 
-const DEFAULT_WS_URL = "ws://localhost:8000/ws";
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 
 export function getWsUrl(): string {
-  return import.meta.env.VITE_WS_URL || DEFAULT_WS_URL;
+  return import.meta.env.VITE_WS_URL;
 }
 
 export function createGameSocket(
