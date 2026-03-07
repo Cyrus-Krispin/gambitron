@@ -135,9 +135,14 @@ export function useGame(options?: UseGameOptions) {
         return;
       }
       const gid = currentGameIdRef.current;
-      if (!gid || gid === "new") return;
       const ws = wsRef.current;
+      console.log("[useGame] sendPlayerMove", { gid, wsReadyState: ws?.readyState, hasWs: !!ws });
+      if (!gid || gid === "new") {
+        console.log("[useGame] sendPlayerMove aborted: no gameId");
+        return;
+      }
       if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("[useGame] sendPlayerMove aborted: WebSocket not connected", ws?.readyState);
         setErrorMessage("WebSocket not connected");
         setErrorOpen(true);
         return;
@@ -234,7 +239,10 @@ export function useGame(options?: UseGameOptions) {
   const handleTileClick = useCallback(
     (squareName: string) => {
       if (aiThinking || chess.isGameOver() || gameEnded) return;
-      if (!isAdmin && !gameStarted) return;
+      if (!isAdmin && !gameStarted) {
+        console.log("[useGame] handleTileClick blocked: game not started");
+        return;
+      }
       if (chess.turn() !== playerTurn) return;
 
       if (!selectedSquare) {
@@ -313,6 +321,7 @@ export function useGame(options?: UseGameOptions) {
 
   const startNewGameViaWebSocket = useCallback(
     (minutes: number, color: PlayerColor) => {
+      console.log("[useGame] startNewGameViaWebSocket", { minutes, color });
       setPlayerColor(color);
       setStartOpen(false);
       setPlayerHasMoved(color === "white");
@@ -323,6 +332,7 @@ export function useGame(options?: UseGameOptions) {
         (msg) => {
           if (msg.type === "game_started") {
             const m = msg as GameStartedMessage;
+            console.log("[useGame] game_started received", m.gameId);
             currentGameIdRef.current = m.gameId;
             setPlayerTimeMs(m.timeControlMs);
             setAiTimeMs(m.timeControlMs);
@@ -385,6 +395,7 @@ export function useGame(options?: UseGameOptions) {
         },
         () => {
           // onOpen - send start_game
+          console.log("[useGame] WS onOpen - sending start_game", { minutes, color });
           sendMessage(wsRef.current!, {
             type: "start_game",
             timeControlMs: minutes * 60 * 1000,
@@ -393,6 +404,7 @@ export function useGame(options?: UseGameOptions) {
         }
       );
       wsRef.current = ws;
+      console.log("[useGame] WS created, readyState:", ws.readyState);
     },
     [chess, openEndgame]
   );

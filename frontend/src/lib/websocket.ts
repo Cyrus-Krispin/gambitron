@@ -89,7 +89,9 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 
 export function getWsUrl(): string {
-  return import.meta.env.VITE_WS_URL || DEFAULT_WS_URL;
+  const url = import.meta.env.VITE_WS_URL || DEFAULT_WS_URL;
+  console.log("[WS] getWsUrl:", url, "VITE_WS_URL:", import.meta.env.VITE_WS_URL);
+  return url;
 }
 
 export function createGameSocket(
@@ -99,26 +101,31 @@ export function createGameSocket(
   onError?: (err: Event) => void
 ): WebSocket {
   const url = getWsUrl();
+  console.log("[WS] createGameSocket connecting to:", url);
   const ws = new WebSocket(url);
 
   ws.onopen = () => {
+    console.log("[WS] onopen - connected to", url);
     onOpen?.();
   };
 
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data) as ServerMessage;
+      console.log("[WS] onmessage:", msg.type, msg);
       onMessage(msg);
     } catch {
-      // ignore parse errors
+      console.warn("[WS] onmessage parse error:", event.data);
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
+    console.log("[WS] onclose", event.code, event.reason || "(no reason)");
     onClose?.();
   };
 
   ws.onerror = (err) => {
+    console.error("[WS] onerror", err);
     onError?.(err);
   };
 
@@ -127,7 +134,10 @@ export function createGameSocket(
 
 export function sendMessage(ws: WebSocket, msg: ClientMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
+    console.log("[WS] sendMessage", msg.type, msg);
     ws.send(JSON.stringify(msg));
+  } else {
+    console.warn("[WS] sendMessage skipped - not OPEN, readyState:", ws.readyState);
   }
 }
 
