@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from chess_engine import get_best_move
 from config import ALLOWED_ORIGINS
-from db.connection import close_pool, create_pool
+from db.connection import close_pool, create_pool, get_connection_error, get_pool
 from db import games as games_db
 from db import moves as moves_db
 from websocket.handlers import handle_message
@@ -35,6 +35,44 @@ async def shutdown():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/db-check")
+async def db_check():
+    """Verify DB connection and whether games/moves tables exist."""
+    pool = get_pool()
+    if not pool:
+        reason = get_connection_error() or "DATABASE_URL not set or pool not created"
+        return {
+            "connected": False,
+            "reason": reason,
+            "tables": {"games": False, "moves": False},
+            "games_count": None,
+        }
+    try:
+        async with pool.acquire() as conn:
+            tables = await conn.fetch(
+                """
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name IN ('games', 'moves')
+                """
+            )
+            found = {r["table_name"] for r in tables}
+            count = None
+            if "games" in found:
+                count = await conn.fetchval("SELECT COUNT(*) FROM games")
+            return {
+                "connected": True,
+                "tables": {"games": "games" in found, "moves": "moves" in found},
+                "games_count": count,
+            }
+    except Exception as e:
+        return {
+            "connected": False,
+            "reason": str(e),
+            "tables": {"games": False, "moves": False},
+            "games_count": None,
+        }
 
 
 @app.post("/")
