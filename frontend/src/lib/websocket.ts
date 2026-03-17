@@ -163,34 +163,48 @@ export function sendMessage(ws: WebSocket, msg: ClientMessage): void {
   }
 }
 
+export interface ReconnectingSocketController {
+  getWs: () => WebSocket | undefined;
+  reconnect: () => void;
+  close: () => void;
+}
+
 export function createReconnectingSocket(
   onMessage: (msg: ServerMessage) => void,
   onOpen?: () => void,
   onClose?: () => void,
-  onError?: (err: Event) => void
-): { ws: WebSocket; reconnect: () => void; close: () => void } {
-  let ws: WebSocket;
+  onError?: (err: Event) => void,
+  wsRef?: { current: WebSocket | null }
+): ReconnectingSocketController {
+  let ws: WebSocket | undefined;
   let attempt = 0;
   let closed = false;
 
   const connect = () => {
     if (closed) return;
-    ws = createGameSocket(onMessage, onOpen, () => {
-      onClose?.();
-      if (!closed && attempt < MAX_RECONNECT_ATTEMPTS) {
-        attempt++;
-        const delay = INITIAL_RECONNECT_DELAY_MS * Math.pow(2, attempt - 1);
-        setTimeout(connect, delay);
-      }
-    }, onError);
+    ws = createGameSocket(
+      onMessage,
+      () => {
+        if (wsRef) wsRef.current = ws ?? null;
+        onOpen?.();
+      },
+      () => {
+        onClose?.();
+        if (!closed && attempt < MAX_RECONNECT_ATTEMPTS) {
+          attempt++;
+          const delay = INITIAL_RECONNECT_DELAY_MS * Math.pow(2, attempt - 1);
+          setTimeout(connect, delay);
+        }
+      },
+      onError
+    );
+    if (wsRef) wsRef.current = ws;
   };
 
   connect();
 
   return {
-    get ws() {
-      return ws;
-    },
+    getWs: () => ws,
     reconnect: () => {
       attempt = 0;
       if (ws?.readyState !== WebSocket.OPEN) {
@@ -200,6 +214,7 @@ export function createReconnectingSocket(
     close: () => {
       closed = true;
       ws?.close();
+      if (wsRef) wsRef.current = null;
     },
   };
 }

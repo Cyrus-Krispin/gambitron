@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { playMoveSound } from "@/utils/sounds";
 import {
-  createGameSocket,
+  createReconnectingSocket,
   sendMessage,
   type GameStartedMessage,
   type TimeUpdateMessage,
@@ -81,9 +81,13 @@ export function useGame(options?: UseGameOptions) {
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin";
 
   const wsRef = useRef<WebSocket | null>(null);
+  const socketControllerRef = useRef<ReturnType<typeof createReconnectingSocket> | null>(null);
   const currentGameIdRef = useRef<string | null>(gameId);
+  const pendingStartRef = useRef<{ minutes: number; color: PlayerColor } | null>(null);
+  const playerColorRef = useRef<PlayerColor>("white");
   const onGameCreatedRef = useRef(onGameCreated);
   onGameCreatedRef.current = onGameCreated;
+  playerColorRef.current = playerColor;
 
   const apiBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
 
@@ -97,6 +101,12 @@ export function useGame(options?: UseGameOptions) {
     setGameEnded(true);
     setAiThinking(false);
     setGameStarted(false);
+  }, []);
+
+  const closeSocket = useCallback(() => {
+    socketControllerRef.current?.close();
+    socketControllerRef.current = null;
+    wsRef.current = null;
   }, []);
 
   const callAIViaRest = useCallback(
@@ -326,12 +336,17 @@ export function useGame(options?: UseGameOptions) {
       setPlayerHasMoved(false);
       setGameEnded(false);
       setGameStarted(true);
+      pendingStartRef.current = { minutes, color };
 
-      const ws = createGameSocket(
+      socketControllerRef.current?.close();
+      const controller = createReconnectingSocket(
         (msg) => {
           if (msg.type === "game_started") {
             const m = msg as GameStartedMessage;
+            const pc = pendingStartRef.current?.color ?? color;
             currentGameIdRef.current = m.gameId;
+            pendingStartRef.current = null;
+            playerColorRef.current = pc;
             setPlayerTimeMs(m.playerTimeMs ?? m.timeControlMs);
             setAiTimeMs(m.aiTimeMs ?? m.timeControlMs);
             setInitialTimeMs(m.timeControlMs);
@@ -347,9 +362,9 @@ export function useGame(options?: UseGameOptions) {
             onGameCreatedRef.current?.(m.gameId, {
               fen: m.fen,
               timeControlMs: m.timeControlMs,
-              playerColor: color,
+              playerColor: pc,
             });
-            if (color === "black") {
+            if (pc === "black") {
               sendMessage(wsRef.current!, {
                 type: "request_ai_move",
                 gameId: m.gameId,
@@ -357,9 +372,28 @@ export function useGame(options?: UseGameOptions) {
               });
               setAiThinking(true);
             }
+          } else if (msg.type === "game_state") {
+            const m = msg as GameStateMessage;
+            if (m.gameId !== currentGameIdRef.current) return;
+            playerColorRef.current = m.playerColor;
+            setPlayerTimeMs(m.playerTimeMs);
+            setAiTimeMs(m.aiTimeMs);
+            setInitialTimeMs(m.timeControlMs);
+            setPlayerColor(m.playerColor);
+            if (m.fen) {
+              try {
+                chess.load(m.fen);
+                setBoardState(chess.board());
+              } catch {
+                // ignore
+              }
+            }
+            if (m.result && m.termination) {
+              openEndgame(m.result, m.termination);
+            }
           } else if (msg.type === "ai_move") {
             const m = msg as AIMoveMessage;
-            const aiColor = color === "white" ? "b" : "w";
+            const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
             if (m.updatedFen) {
@@ -377,7 +411,7 @@ export function useGame(options?: UseGameOptions) {
             }
           } else if (msg.type === "game_ended") {
             const m = msg as GameEndedMessage;
-            const aiColor = color === "white" ? "b" : "w";
+            const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
               setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
@@ -405,52 +439,68 @@ export function useGame(options?: UseGameOptions) {
           }
         },
         () => {
-          // onOpen - send start_game
-          sendMessage(wsRef.current!, {
-            type: "start_game",
-            timeControlMs: minutes * 60 * 1000,
-            playerColor: color,
-          });
-        }
+          const ws = wsRef.current;
+          const gid = currentGameIdRef.current;
+          if (gid && gid !== "new") {
+            sendMessage(ws!, { type: "subscribe", gameId: gid });
+          } else {
+            const p = pendingStartRef.current;
+            if (p) {
+              sendMessage(ws!, {
+                type: "start_game",
+                timeControlMs: p.minutes * 60 * 1000,
+                playerColor: p.color,
+              });
+            }
+          }
+        },
+        undefined,
+        undefined,
+        wsRef
       );
-      wsRef.current = ws;
+      socketControllerRef.current = controller;
     },
     [chess, openEndgame]
   );
 
   const connectToExistingGame = useCallback(
-    (gid: string, gameState: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => {
+    (gid: string, gameState?: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => {
       if (wsRef.current?.readyState === WebSocket.OPEN && currentGameIdRef.current === gid) {
         return;
       }
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      socketControllerRef.current?.close();
       currentGameIdRef.current = gid;
-      setPlayerTimeMs(gameState.timeControlMs);
-      setAiTimeMs(gameState.timeControlMs);
-      setInitialTimeMs(gameState.timeControlMs);
-      setPlayerColor(gameState.playerColor);
       setGameStarted(true);
       setGameEnded(false);
       setStartOpen(false);
-      try {
-        chess.load(gameState.fen);
-      } catch {
+      if (gameState) {
+        setPlayerTimeMs(gameState.timeControlMs);
+        setAiTimeMs(gameState.timeControlMs);
+        setInitialTimeMs(gameState.timeControlMs);
+        setPlayerColor(gameState.playerColor);
+        playerColorRef.current = gameState.playerColor;
+        try {
+          chess.load(gameState.fen);
+        } catch {
+          chess.reset();
+        }
+        setBoardState(chess.board());
+        setMoveHistory([]);
+        setPlayerHasMoved(true);
+      } else {
         chess.reset();
+        setBoardState(chess.board());
+        setMoveHistory([]);
       }
-      setBoardState(chess.board());
       setSelectedSquare(null);
       setValidMoves([]);
-      setMoveHistory([]);
-      setPlayerHasMoved(true);
 
-      const ws = createGameSocket(
+      const controller = createReconnectingSocket(
         (msg) => {
           if (msg.type === "game_state") {
             const m = msg as GameStateMessage;
             if (m.gameId !== gid) return;
+            playerColorRef.current = m.playerColor;
             setPlayerTimeMs(m.playerTimeMs);
             setAiTimeMs(m.aiTimeMs);
             setInitialTimeMs(m.timeControlMs);
@@ -463,6 +513,7 @@ export function useGame(options?: UseGameOptions) {
                 // ignore
               }
             }
+            setPlayerHasMoved(true);
             if (m.result && m.termination) {
               openEndgame(m.result, m.termination);
             }
@@ -474,7 +525,7 @@ export function useGame(options?: UseGameOptions) {
             }
           } else if (msg.type === "ai_move") {
             const m = msg as AIMoveMessage;
-            const aiColor = gameState.playerColor === "white" ? "b" : "w";
+            const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
             if (m.updatedFen) {
@@ -492,7 +543,7 @@ export function useGame(options?: UseGameOptions) {
             }
           } else if (msg.type === "game_ended") {
             const m = msg as GameEndedMessage;
-            const aiColor = gameState.playerColor === "white" ? "b" : "w";
+            const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
               setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
@@ -515,9 +566,12 @@ export function useGame(options?: UseGameOptions) {
         },
         () => {
           sendMessage(wsRef.current!, { type: "subscribe", gameId: gid });
-        }
+        },
+        undefined,
+        undefined,
+        wsRef
       );
-      wsRef.current = ws;
+      socketControllerRef.current = controller;
     },
     [chess, openEndgame]
   );
@@ -567,10 +621,7 @@ export function useGame(options?: UseGameOptions) {
   );
 
   const handleNewGame = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    closeSocket();
     currentGameIdRef.current = null;
     setAiThinking(false);
     setMoveHistory([]);
@@ -582,13 +633,10 @@ export function useGame(options?: UseGameOptions) {
     setPlayerHasMoved(false);
     setGameEnded(false);
     setStartOpen(true);
-  }, [chess]);
+  }, [chess, closeSocket]);
 
   const handleNewGameFromEndgame = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    closeSocket();
     currentGameIdRef.current = null;
     setMoveHistory([]);
     chess.reset();
@@ -601,23 +649,18 @@ export function useGame(options?: UseGameOptions) {
     setAiThinking(false);
     setEndgameOpen(false);
     setStartOpen(true);
-  }, [chess]);
+  }, [chess, closeSocket]);
 
   useEffect(() => {
     currentGameIdRef.current = gameId;
   }, [gameId]);
 
   useEffect(() => {
-    if (gameId && gameId !== "new" && initialGameState) {
-      connectToExistingGame(gameId, initialGameState);
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close();
-          wsRef.current = null;
-        }
-      };
+    if (gameId && gameId !== "new") {
+      connectToExistingGame(gameId, initialGameState ?? undefined);
+      return () => closeSocket();
     }
-  }, [gameId, connectToExistingGame, initialGameState?.fen]);
+  }, [gameId, connectToExistingGame, initialGameState?.fen, closeSocket]);
 
   // Auto-start when navigating from Landing with color preselected (e.g. /play/new?minutes=5&color=white)
   useEffect(() => {
