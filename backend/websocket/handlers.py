@@ -211,6 +211,7 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
     await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
     timers_module.update_fen(game_id, updated_fen)
+    timers_module.clear_ai_first_move_pending(game_id)
 
     if result and result != "*":
         termination = _termination_from_result(result)

@@ -420,6 +420,9 @@ export function useGame(options?: UseGameOptions) {
 
   const connectToExistingGame = useCallback(
     (gid: string, gameState: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN && currentGameIdRef.current === gid) {
+        return;
+      }
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

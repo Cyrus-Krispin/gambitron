@@ -35,6 +35,7 @@ def register_game(
         "player_color": player_color,
         "fen": fen,
         "game_ended": False,
+        "ai_first_move_pending": player_color == "black",
     }
 
 
@@ -56,7 +57,7 @@ def apply_elapsed(game_id: uuid.UUID) -> tuple[int, int] | None:
     t["last_tick_ts"] = now
     if elapsed_ms <= 0:
         return (t["player_time_ms"], t["ai_time_ms"])
-    if _is_player_turn(t["fen"], t["player_color"]):
+    if is_player_turn(t["fen"], t["player_color"]):
         t["player_time_ms"] = max(0, t["player_time_ms"] - elapsed_ms)
     else:
         t["ai_time_ms"] = max(0, t["ai_time_ms"] - elapsed_ms)
@@ -68,6 +69,13 @@ def update_fen(game_id: uuid.UUID, fen: str) -> None:
     t = _game_timers.get(game_id)
     if t and not t.get("game_ended"):
         t["fen"] = fen
+
+
+def clear_ai_first_move_pending(game_id: uuid.UUID) -> None:
+    """Clear ai_first_move_pending after AI plays first move (player is black)."""
+    t = _game_timers.get(game_id)
+    if t:
+        t["ai_first_move_pending"] = False
 
 
 def remove_game(game_id: uuid.UUID) -> None:
@@ -93,6 +101,18 @@ async def tick_all(broadcast_fn) -> None:
         if t.get("game_ended"):
             to_remove.append(game_id)
             continue
+        if t.get("ai_first_move_pending"):
+            t["last_tick_ts"] = now
+            await broadcast_fn(
+                game_id,
+                {
+                    "type": "time_update",
+                    "gameId": str(game_id),
+                    "playerTimeMs": t["player_time_ms"],
+                    "aiTimeMs": t["ai_time_ms"],
+                },
+            )
+            continue
         elapsed_ms = int((now - t["last_tick_ts"]) * 1000)
         t["last_tick_ts"] = now
         if elapsed_ms > 0:
@@ -108,7 +128,7 @@ async def tick_all(broadcast_fn) -> None:
             result = "0-1" if pt <= 0 else "1-0"
             termination = "timeout"
             await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
-            broadcast_fn(
+            await broadcast_fn(
                 game_id,
                 {
                     "type": "game_ended",
@@ -119,7 +139,7 @@ async def tick_all(broadcast_fn) -> None:
             )
             to_remove.append(game_id)
         else:
-            broadcast_fn(
+            await broadcast_fn(
                 game_id,
                 {
                     "type": "time_update",
