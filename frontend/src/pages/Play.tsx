@@ -32,8 +32,8 @@ export default function Play() {
 
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 min-h-0">
-        <div className="flex flex-col items-center gap-4 w-full max-w-[600px] min-w-0">
+      <div className="flex-1 flex flex-col items-center justify-center px-2 py-4 sm:px-6 sm:py-6 min-h-0">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 w-full max-w-[680px] min-w-0">
           {/* Inline color picker - only when no color from URL (e.g. direct /play/5) */}
           {game.startOpen && (
             <div className="flex items-center gap-3 py-2 px-4 rounded-lg bg-muted/60 border border-border/60">

@@ -38,16 +38,17 @@ export function ChessBoard({
       const vv = window.visualViewport;
       const vw = vv ? vv.width : window.innerWidth;
       const vh = vv ? vv.height : window.innerHeight;
-      // Reserve: header 56px, padding 32px, capture ~50px, controls ~56px, gaps ~24px
-      const reservedH = 64;
-      const reservedV = 220;
+      const isMobile = vw < 640;
+      // Mobile: minimal padding (16px sides). Desktop: more room for controls
+      const reservedH = isMobile ? 32 : 48;
+      const reservedV = isMobile ? 180 : 200;
       const availW = vw - reservedH;
       const availH = vh - reservedV;
-      // Board + labels: width = size + labelSize, height = size + labelSize (file labels only on bottom)
       const maxByW = availW - labelSize;
       const maxByH = availH - labelSize;
       const maxSize = Math.min(maxByW, maxByH);
-      const clamped = Math.max(200, Math.min(maxSize, 560));
+      const maxCap = isMobile ? 999 : 640;
+      const clamped = Math.max(220, Math.min(maxSize, maxCap));
       setSize(Math.floor(clamped));
     };
     update();
