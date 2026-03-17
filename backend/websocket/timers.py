@@ -27,7 +27,9 @@ def register_game(
     player_color: str,
     fen: str,
 ) -> None:
-    """Register a new game with timer. Both clocks start at time_control_ms."""
+    """Register a new game with timer. Both clocks start at time_control_ms.
+    ai_first_move_pending: when player is black, AI moves first - don't tick until AI has moved.
+    player_first_move_pending: when player is white, don't tick player clock until they move."""
     _game_timers[game_id] = {
         "player_time_ms": time_control_ms,
         "ai_time_ms": time_control_ms,
@@ -36,6 +38,7 @@ def register_game(
         "fen": fen,
         "game_ended": False,
         "ai_first_move_pending": player_color == "black",
+        "player_first_move_pending": player_color == "white",
     }
 
 
@@ -48,10 +51,14 @@ def apply_elapsed(game_id: uuid.UUID) -> tuple[int, int] | None:
     """
     Apply elapsed time to current turn's clock. Update last_tick_ts.
     Returns (player_time_ms, ai_time_ms) after update, or None if game not found/ended.
+    Skips ticking when ai_first_move_pending or player_first_move_pending.
     """
     t = _game_timers.get(game_id)
     if not t or t.get("game_ended"):
         return None
+    if t.get("ai_first_move_pending") or t.get("player_first_move_pending"):
+        t["last_tick_ts"] = time.time()
+        return (t["player_time_ms"], t["ai_time_ms"])
     now = time.time()
     elapsed_ms = int((now - t["last_tick_ts"]) * 1000)
     t["last_tick_ts"] = now
@@ -78,6 +85,13 @@ def clear_ai_first_move_pending(game_id: uuid.UUID) -> None:
         t["ai_first_move_pending"] = False
 
 
+def clear_player_first_move_pending(game_id: uuid.UUID) -> None:
+    """Clear player_first_move_pending after player makes first move (player is white)."""
+    t = _game_timers.get(game_id)
+    if t:
+        t["player_first_move_pending"] = False
+
+
 def remove_game(game_id: uuid.UUID) -> None:
     """Remove game from timer tracking (e.g. when game ends by checkmate)."""
     _game_timers.pop(game_id, None)
@@ -101,7 +115,7 @@ async def tick_all(broadcast_fn) -> None:
         if t.get("game_ended"):
             to_remove.append(game_id)
             continue
-        if t.get("ai_first_move_pending"):
+        if t.get("ai_first_move_pending") or t.get("player_first_move_pending"):
             t["last_tick_ts"] = now
             await broadcast_fn(
                 game_id,

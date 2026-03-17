@@ -92,6 +92,9 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     move_count = await moves_db.get_move_count(game_id)
     player_ply = move_count + 1
 
+    if player_color == "white" and move_count == 0:
+        timers_module.clear_player_first_move_pending(game_id)
+
     if san is None and from_sq and to_sq:
         san = f"{from_sq}{to_sq}"
     if not san:
