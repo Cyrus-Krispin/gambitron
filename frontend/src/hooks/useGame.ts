@@ -5,6 +5,8 @@ import {
   createGameSocket,
   sendMessage,
   type GameStartedMessage,
+  type TimeUpdateMessage,
+  type GameStateMessage,
   type AIMoveMessage,
   type GameEndedMessage,
   type ErrorMessage,
@@ -26,10 +28,6 @@ function computeResult(game: Chess): string {
     return winner === "w" ? "1-0" : "0-1";
   }
   return "1/2-1/2";
-}
-
-function clamp(ms: number): number {
-  return ms < 0 ? 0 : ms;
 }
 
 export interface UseGameOptions {
@@ -334,8 +332,8 @@ export function useGame(options?: UseGameOptions) {
           if (msg.type === "game_started") {
             const m = msg as GameStartedMessage;
             currentGameIdRef.current = m.gameId;
-            setPlayerTimeMs(m.timeControlMs);
-            setAiTimeMs(m.timeControlMs);
+            setPlayerTimeMs(m.playerTimeMs ?? m.timeControlMs);
+            setAiTimeMs(m.aiTimeMs ?? m.timeControlMs);
             setInitialTimeMs(m.timeControlMs);
             setMoveHistory([]);
             try {
@@ -361,8 +359,9 @@ export function useGame(options?: UseGameOptions) {
             }
           } else if (msg.type === "ai_move") {
             const m = msg as AIMoveMessage;
+            const aiColor = color === "white" ? "b" : "w";
             setAiThinking(false);
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiTurn }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -378,9 +377,10 @@ export function useGame(options?: UseGameOptions) {
             }
           } else if (msg.type === "game_ended") {
             const m = msg as GameEndedMessage;
+            const aiColor = color === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiTurn }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
             }
             if (m.updatedFen) {
               try {
@@ -392,6 +392,12 @@ export function useGame(options?: UseGameOptions) {
               }
             }
             openEndgame(m.result, m.termination);
+          } else if (msg.type === "time_update") {
+            const m = msg as TimeUpdateMessage;
+            if (m.gameId === currentGameIdRef.current) {
+              setPlayerTimeMs(m.playerTimeMs);
+              setAiTimeMs(m.aiTimeMs);
+            }
           } else if (msg.type === "error") {
             setAiThinking(false);
             setErrorMessage((msg as ErrorMessage).message);
@@ -437,46 +443,77 @@ export function useGame(options?: UseGameOptions) {
       setMoveHistory([]);
       setPlayerHasMoved(true);
 
-      const ws = createGameSocket((msg) => {
-        if (msg.type === "ai_move") {
-          const m = msg as AIMoveMessage;
-          setAiThinking(false);
-          setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiTurn }]);
-          if (m.updatedFen) {
-            try {
-              chess.load(m.updatedFen);
-              setBoardState(chess.board());
-              setPlayerHasMoved(true);
-              playMoveSound();
-            } catch {
-              // ignore
+      const ws = createGameSocket(
+        (msg) => {
+          if (msg.type === "game_state") {
+            const m = msg as GameStateMessage;
+            if (m.gameId !== gid) return;
+            setPlayerTimeMs(m.playerTimeMs);
+            setAiTimeMs(m.aiTimeMs);
+            setInitialTimeMs(m.timeControlMs);
+            setPlayerColor(m.playerColor);
+            if (m.fen) {
+              try {
+                chess.load(m.fen);
+                setBoardState(chess.board());
+              } catch {
+                // ignore
+              }
             }
-          }
-          if (m.result && m.result !== "*") {
-            openEndgame(m.result, "checkmate");
-          }
-        } else if (msg.type === "game_ended") {
-          const m = msg as GameEndedMessage;
-          setAiThinking(false);
-          if (m.captured) {
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiTurn }]);
-          }
-          if (m.updatedFen) {
-            try {
-              chess.load(m.updatedFen);
-              setBoardState(chess.board());
-              playMoveSound();
-            } catch {
-              // ignore
+            if (m.result && m.termination) {
+              openEndgame(m.result, m.termination);
             }
+          } else if (msg.type === "time_update") {
+            const m = msg as TimeUpdateMessage;
+            if (m.gameId === gid) {
+              setPlayerTimeMs(m.playerTimeMs);
+              setAiTimeMs(m.aiTimeMs);
+            }
+          } else if (msg.type === "ai_move") {
+            const m = msg as AIMoveMessage;
+            const aiColor = gameState.playerColor === "white" ? "b" : "w";
+            setAiThinking(false);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+            if (m.updatedFen) {
+              try {
+                chess.load(m.updatedFen);
+                setBoardState(chess.board());
+                setPlayerHasMoved(true);
+                playMoveSound();
+              } catch {
+                // ignore
+              }
+            }
+            if (m.result && m.result !== "*") {
+              openEndgame(m.result, "checkmate");
+            }
+          } else if (msg.type === "game_ended") {
+            const m = msg as GameEndedMessage;
+            const aiColor = gameState.playerColor === "white" ? "b" : "w";
+            setAiThinking(false);
+            if (m.captured) {
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+            }
+            if (m.updatedFen) {
+              try {
+                chess.load(m.updatedFen);
+                setBoardState(chess.board());
+                playMoveSound();
+              } catch {
+                // ignore
+              }
+            }
+            openEndgame(m.result, m.termination);
+          } else if (msg.type === "error") {
+            setAiThinking(false);
+            setErrorMessage((msg as ErrorMessage).message);
+            setErrorOpen(true);
           }
-          openEndgame(m.result, m.termination);
-        } else if (msg.type === "error") {
-          setAiThinking(false);
-          setErrorMessage((msg as ErrorMessage).message);
-          setErrorOpen(true);
+        },
+        () => {
+          sendMessage(wsRef.current!, { type: "subscribe", gameId: gid });
         }
-      });
+      );
       wsRef.current = ws;
     },
     [chess, openEndgame]
@@ -586,25 +623,26 @@ export function useGame(options?: UseGameOptions) {
     startNewGameViaWebSocket(selectedMinutes, initialColor);
   }, [gameId, initialColor, initialGameState, isAdmin, gameStarted, selectedMinutes, startNewGameViaWebSocket]);
 
+  // Admin mode: frontend owns timer (no WebSocket)
   useEffect(() => {
-    if (isAdmin || chess.isGameOver() || gameEnded) return;
+    if (!isAdmin || chess.isGameOver() || gameEnded) return;
     if (chess.turn() !== playerTurn || !playerHasMoved || !gameStarted || aiThinking) return;
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      setPlayerTimeMs((t) => clamp(t - (now - last)));
+      setPlayerTimeMs((t) => Math.max(0, t - (now - last)));
       last = now;
     }, 100);
     return () => window.clearInterval(id);
   }, [boardState, aiThinking, playerHasMoved, gameEnded, gameStarted, isAdmin, chess, playerTurn]);
 
   useEffect(() => {
-    if (isAdmin || !aiThinking || chess.isGameOver() || gameEnded || !gameStarted) return;
+    if (!isAdmin || !aiThinking || chess.isGameOver() || gameEnded || !gameStarted) return;
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
       setAiTimeMs((t) => {
-        const newTime = clamp(t - (now - last));
+        const newTime = Math.max(0, t - (now - last));
         if (newTime <= 0 && t > 0) {
           openEndgame(aiTurn === "w" ? "0-1" : "1-0", "timeout");
           setAiThinking(false);
@@ -617,7 +655,7 @@ export function useGame(options?: UseGameOptions) {
   }, [aiThinking, gameEnded, gameStarted, isAdmin, chess, openEndgame, aiTurn]);
 
   useEffect(() => {
-    if (isAdmin || chess.isGameOver() || gameEnded || !playerHasMoved || !gameStarted || aiThinking) return;
+    if (!isAdmin || chess.isGameOver() || gameEnded || !playerHasMoved || !gameStarted || aiThinking) return;
     if (playerTimeMs <= 0 && chess.turn() === playerTurn) openEndgame(playerTurn === "w" ? "0-1" : "1-0", "timeout");
     else if (aiTimeMs <= 0 && chess.turn() === aiTurn) openEndgame(aiTurn === "w" ? "0-1" : "1-0", "timeout");
   }, [playerTimeMs, aiTimeMs, playerHasMoved, aiThinking, gameEnded, gameStarted, isAdmin, chess, openEndgame, playerTurn, aiTurn]);

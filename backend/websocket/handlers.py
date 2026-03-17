@@ -9,6 +9,8 @@ from fastapi import WebSocket
 from chess_engine import get_best_move
 from db import games as games_db
 from db import moves as moves_db
+from websocket import connection_manager
+from websocket import timers as timers_module
 
 
 async def _run_ai(fen: str):
@@ -37,11 +39,15 @@ async def handle_start_game(ws: WebSocket, data: dict) -> dict | None:
 
     game_id = await games_db.create_game(time_control_ms, player_color)
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    timers_module.register_game(game_id, time_control_ms, player_color, fen)
+    connection_manager.subscribe(ws, game_id)
     return {
         "type": "game_started",
         "gameId": str(game_id),
         "fen": fen,
         "timeControlMs": time_control_ms,
+        "playerTimeMs": time_control_ms,
+        "aiTimeMs": time_control_ms,
     }
 
 
@@ -61,9 +67,27 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     except ValueError:
         return {"type": "error", "message": "Invalid gameId"}
 
+    connection_manager.subscribe(ws, game_id)
+
     game = await games_db.get_game(game_id)
     if not game or game.get("ended_at"):
         return {"type": "error", "message": "Game not found or already ended"}
+
+    player_color = game.get("player_color", "white")
+    times = timers_module.apply_elapsed(game_id)
+    if times:
+        pt, at = times
+        t = timers_module.get_timer(game_id)
+        if t and timers_module.is_player_turn(fen, player_color) and pt <= 0:
+            timers_module.mark_ended(game_id)
+            timers_module.remove_game(game_id)
+            await moves_db.finalize_game_to_pgn(game_id, "0-1", "timeout", player_color)
+            return {
+                "type": "game_ended",
+                "gameId": str(game_id),
+                "result": "0-1",
+                "termination": "timeout",
+            }
 
     move_count = await moves_db.get_move_count(game_id)
     player_ply = move_count + 1
@@ -83,7 +107,7 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     if board.is_game_over():
         result = board.result()
         termination = _termination_from_result(result)
-        player_color = game.get("player_color", "white")
+        timers_module.remove_game(game_id)
         await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
@@ -92,7 +116,10 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
             "termination": termination,
         }
 
+    timers_module.update_fen(game_id, fen)
+
     ai_result = await _run_ai(fen)
+    times = timers_module.apply_elapsed(game_id)
     updated_fen = ai_result["updated_fen"]
     result = ai_result["result"]
 
@@ -103,9 +130,11 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     ai_captured = ai_result.get("captured")
     await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
+    timers_module.update_fen(game_id, updated_fen)
+
     if result and result != "*":
         termination = _termination_from_result(result)
-        player_color = game.get("player_color", "white")
+        timers_module.remove_game(game_id)
         await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
@@ -143,6 +172,8 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
     except ValueError:
         return {"type": "error", "message": "Invalid gameId"}
 
+    connection_manager.subscribe(ws, game_id)
+
     game = await games_db.get_game(game_id)
     if not game or game.get("ended_at"):
         return {"type": "error", "message": "Game not found or already ended"}
@@ -151,7 +182,24 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
     if move_count > 0:
         return {"type": "error", "message": "request_ai_move only valid at game start"}
 
+    player_color = game.get("player_color", "white")
+    times = timers_module.apply_elapsed(game_id)
+    if times:
+        pt, at = times
+        t = timers_module.get_timer(game_id)
+        if t and not timers_module.is_player_turn(fen, player_color) and at <= 0:
+            timers_module.mark_ended(game_id)
+            timers_module.remove_game(game_id)
+            await moves_db.finalize_game_to_pgn(game_id, "1-0", "timeout", player_color)
+            return {
+                "type": "game_ended",
+                "gameId": str(game_id),
+                "result": "1-0",
+                "termination": "timeout",
+            }
+
     ai_result = await _run_ai(fen)
+    timers_module.apply_elapsed(game_id)
     updated_fen = ai_result["updated_fen"]
     result = ai_result["result"]
 
@@ -162,9 +210,11 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
     ai_captured = ai_result.get("captured")
     await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
+    timers_module.update_fen(game_id, updated_fen)
+
     if result and result != "*":
         termination = _termination_from_result(result)
-        player_color = game.get("player_color", "white")
+        timers_module.remove_game(game_id)
         await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
@@ -209,6 +259,56 @@ async def handle_promotion_move(ws: WebSocket, data: dict) -> dict | None:
     return await handle_player_move(ws, data)
 
 
+async def handle_subscribe(ws: WebSocket, data: dict) -> dict | None:
+    """Handle subscribe - reconnect to a game. Returns full game_state."""
+    game_id_str = data.get("gameId")
+    if not game_id_str:
+        return {"type": "error", "message": "gameId required"}
+
+    try:
+        game_id = uuid.UUID(game_id_str)
+    except ValueError:
+        return {"type": "error", "message": "Invalid gameId"}
+
+    game = await games_db.get_game(game_id)
+    if not game:
+        return {"type": "error", "message": "Game not found"}
+
+    connection_manager.subscribe(ws, game_id)
+
+    player_color = game.get("player_color", "white")
+    time_control_ms = game.get("time_control_ms", 60000)
+
+    t = timers_module.get_timer(game_id)
+    if t:
+        return {
+            "type": "game_state",
+            "gameId": str(game_id),
+            "fen": t["fen"],
+            "playerTimeMs": t["player_time_ms"],
+            "aiTimeMs": t["ai_time_ms"],
+            "timeControlMs": time_control_ms,
+            "playerColor": player_color,
+        }
+
+    if game.get("ended_at"):
+        moves = await moves_db.get_moves_by_game(game_id)
+        fen = moves[-1]["fen"] if moves else "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        return {
+            "type": "game_state",
+            "gameId": str(game_id),
+            "fen": fen,
+            "playerTimeMs": 0,
+            "aiTimeMs": 0,
+            "timeControlMs": time_control_ms,
+            "playerColor": player_color,
+            "result": game.get("result"),
+            "termination": game.get("termination"),
+        }
+
+    return {"type": "error", "message": "Game state unavailable"}
+
+
 async def handle_message(ws: WebSocket, raw: str) -> dict | None:
     """Dispatch message by type. Returns response to send or None."""
     try:
@@ -222,6 +322,8 @@ async def handle_message(ws: WebSocket, raw: str) -> dict | None:
 
     if msg_type == "start_game":
         return await handle_start_game(ws, msg)
+    if msg_type == "subscribe":
+        return await handle_subscribe(ws, msg)
     if msg_type == "player_move":
         return await handle_player_move(ws, msg)
     if msg_type == "promotion_move":

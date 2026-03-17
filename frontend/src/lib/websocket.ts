@@ -36,11 +36,17 @@ export interface PingPayload {
   type: "ping";
 }
 
+export interface SubscribePayload {
+  type: "subscribe";
+  gameId: string;
+}
+
 export type ClientMessage =
   | StartGamePayload
   | PlayerMovePayload
   | PromotionMovePayload
   | RequestAIMovePayload
+  | SubscribePayload
   | PingPayload;
 
 export interface GameStartedMessage {
@@ -48,6 +54,27 @@ export interface GameStartedMessage {
   gameId: string;
   fen: string;
   timeControlMs: number;
+  playerTimeMs?: number;
+  aiTimeMs?: number;
+}
+
+export interface TimeUpdateMessage {
+  type: "time_update";
+  gameId: string;
+  playerTimeMs: number;
+  aiTimeMs: number;
+}
+
+export interface GameStateMessage {
+  type: "game_state";
+  gameId: string;
+  fen: string | null;
+  playerTimeMs: number;
+  aiTimeMs: number;
+  timeControlMs: number;
+  playerColor: "white" | "black";
+  result?: string;
+  termination?: string;
 }
 
 export interface AIMoveMessage {
@@ -83,6 +110,8 @@ export interface PongMessage {
 
 export type ServerMessage =
   | GameStartedMessage
+  | TimeUpdateMessage
+  | GameStateMessage
   | AIMoveMessage
   | GameEndedMessage
   | ErrorMessage

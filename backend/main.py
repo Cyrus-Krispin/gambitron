@@ -1,4 +1,5 @@
 """Gambitron FastAPI backend."""
+import asyncio
 import json
 import uuid
 
@@ -10,9 +11,12 @@ from config import ALLOWED_ORIGINS
 from db.connection import close_pool, create_pool, get_connection_error, get_pool
 from db import games as games_db
 from db import moves as moves_db
+from websocket import connection_manager
+from websocket import timers as timers_module
 from websocket.handlers import handle_message
 
 app = FastAPI()
+_timer_task: asyncio.Task | None = None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -22,13 +26,29 @@ app.add_middleware(
 )
 
 
+async def _timer_loop():
+    """Background task: tick game timers every 100ms, broadcast time_update."""
+    while True:
+        await asyncio.sleep(0.1)
+        await timers_module.tick_all(connection_manager.broadcast_to_game)
+
+
 @app.on_event("startup")
 async def startup():
+    global _timer_task
     await create_pool()
+    _timer_task = asyncio.create_task(_timer_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    global _timer_task
+    if _timer_task:
+        _timer_task.cancel()
+        try:
+            await _timer_task
+        except asyncio.CancelledError:
+            pass
     await close_pool()
 
 
@@ -94,7 +114,7 @@ async def websocket_endpoint(ws: WebSocket):
             if response:
                 await ws.send_json(response)
     except WebSocketDisconnect:
-        pass
+        connection_manager.on_disconnect(ws)
 
 
 @app.get("/games")
