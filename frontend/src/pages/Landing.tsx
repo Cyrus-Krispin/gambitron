@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useHistory, Link } from "react-router-dom";
-import { Shuffle } from "lucide-react";
+import { Shuffle, X } from "lucide-react";
 
 const PLAY_MODES = [
   { label: "Bullet", sublabel: "1 min", minutes: 1 },
@@ -12,7 +12,7 @@ const PLAY_MODES = [
 ];
 
 export default function Landing() {
-  const [flippedMinutes, setFlippedMinutes] = useState<number | null>(null);
+  const [selectedMode, setSelectedMode] = useState<{ label: string; sublabel: string; minutes: number } | null>(null);
   const history = useHistory();
 
   const handleColorPick = (minutes: number, color: "white" | "black") => {
@@ -25,138 +25,115 @@ export default function Landing() {
   };
 
   return (
-    <div className="h-full relative overflow-hidden">
-      {/* Background gradient - teal theme */}
+    <div className="h-full overflow-y-auto overflow-x-hidden">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.7_0.15_195/0.12),transparent_50%)]" />
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_40%_at_80%_50%,oklch(0.5_0.1_195/0.08),transparent_50%)]" />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_40%_30%_at_20%_80%,oklch(0.6_0.12_180/0.06),transparent_50%)]" />
-
-      {/* Subtle grid pattern */}
       <div
         className="absolute inset-0 -z-10 opacity-[0.03]"
         style={{
-          backgroundImage: `linear-gradient(oklch(1_0_0/0.5) 1px, transparent 1px),
-            linear-gradient(90deg, oklch(1_0_0/0.5) 1px, transparent 1px)`,
+          backgroundImage: "linear-gradient(oklch(1_0_0/0.5) 1px, transparent 1px), linear-gradient(90deg, oklch(1_0_0/0.5) 1px, transparent 1px)",
           backgroundSize: "48px 48px",
         }}
       />
 
-      <section className="mx-auto max-w-2xl px-4 py-6 sm:py-8 h-full flex flex-col justify-center">
+      <section className="relative mx-auto max-w-xl px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 min-h-full">
         <div className="text-center mb-8 sm:mb-10">
-          <div className="inline-block mb-2 text-4xl opacity-90">♔</div>
+          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 mb-4 rounded-2xl bg-primary/10 border border-primary/20">
+            <span className="text-4xl sm:text-5xl" aria-hidden={true}>♔</span>
+          </div>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
             Gambitron
           </h1>
-          <p className="mt-2 text-base text-muted-foreground max-w-md mx-auto">
-            Chess AI powered by minimax and alpha-beta pruning. Choose your time control.
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-sm mx-auto">
+            Chess AI · minimax & αβ pruning
           </p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {PLAY_MODES.map((mode) => {
-            const isFlipped = flippedMinutes === mode.minutes;
-            return (
-              <div
-                key={mode.minutes}
-                className="relative h-28 sm:h-32 [perspective:1000px]"
-              >
-                <div
-                  className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${
-                    isFlipped ? "[transform:rotateY(180deg)]" : ""
-                  }`}
-                >
-                  {/* Front - time control */}
-                  <div
-                    className="absolute inset-0 cursor-pointer rounded-lg border border-border/80 bg-card/80 backdrop-blur-sm hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 overflow-hidden [backface-visibility:hidden]"
-                    onClick={() => setFlippedMinutes(isFlipped ? null : mode.minutes)}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
-                    <div className="relative p-5 sm:p-6 h-full flex flex-col justify-center items-center text-center">
-                      <div className="font-semibold text-foreground">{mode.label}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">{mode.sublabel}</div>
-                    </div>
-                  </div>
-
-                  {/* Back - color selection */}
-                  <div
-                    className="absolute inset-0 rounded-lg border border-border/80 bg-card/90 backdrop-blur-sm overflow-hidden [backface-visibility:hidden] [transform:rotateY(180deg)]"
-                  >
-                    <div className="p-3 h-full flex flex-col justify-between items-center min-h-0 text-center">
-                      <div className="font-semibold text-foreground text-sm">
-                        {mode.label} {mode.sublabel}
-                      </div>
-                      <div className="space-y-1 flex flex-col items-center">
-                        <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Play as</div>
-                        <div className="flex gap-1.5 items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleColorPick(mode.minutes, "white");
-                            }}
-                            className="flex items-center justify-center gap-1 py-1.5 px-2 rounded border border-border bg-white text-[#333] hover:bg-white/90 transition-colors text-xs font-medium"
-                          >
-                            <img src="/pieces/k-white.svg" alt="" className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate">White</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleColorPick(mode.minutes, "black");
-                            }}
-                            className="flex items-center justify-center gap-1 py-1.5 px-2 rounded border border-border bg-[#1a1a1a] text-white hover:bg-[#2a2a2a] transition-colors text-xs font-medium"
-                          >
-                            <img src="/pieces/k-black.svg" alt="" className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate">Black</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRandomPick(mode.minutes);
-                            }}
-                            className="flex items-center justify-center p-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-                            title="Random"
-                          >
-                            <Shuffle className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFlippedMinutes(null);
-                        }}
-                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {PLAY_MODES.map((mode) => (
+            <button
+              key={mode.minutes}
+              type="button"
+              onClick={() => setSelectedMode(mode)}
+              className="rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm hover:border-primary/50 hover:bg-primary/10 transition-all duration-200 py-6 px-4 text-center focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2"
+            >
+              <div className="font-semibold text-foreground">{mode.label}</div>
+              <div className="mt-0.5 text-sm text-muted-foreground">{mode.sublabel}</div>
+            </button>
+          ))}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-border/50">
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
+        <div className="mt-10 pt-6 border-t border-border/50">
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-sm text-muted-foreground">
             <Link to="/history" className="hover:text-foreground transition-colors">
               History
             </Link>
-            <span className="text-border">·</span>
             <Link to="/about" className="hover:text-foreground transition-colors">
               About
             </Link>
-            <span className="text-border">·</span>
-            <span>Minimax + αβ pruning</span>
-            <span className="text-border">·</span>
-            <span>6 time controls</span>
           </div>
         </div>
       </section>
+
+      {selectedMode !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="color-modal-title"
+        >
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelectedMode(null)}
+            aria-hidden
+          />
+          <div
+            className="relative w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <p id="color-modal-title" className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                {selectedMode.label} · {selectedMode.sublabel}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedMode(null)}
+                className="p-1.5 -mr-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <h2 className="text-xl font-semibold text-foreground mb-6">Play as</h2>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => handleColorPick(selectedMode.minutes, "white")}
+                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-border bg-white text-[#333] hover:border-primary/50 hover:bg-white/95 transition-all font-medium shadow-sm"
+              >
+                <img src="/pieces/k-white.svg" alt="" className="w-6 h-6" />
+                White
+              </button>
+              <button
+                type="button"
+                onClick={() => handleColorPick(selectedMode.minutes, "black")}
+                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-border bg-[#1a1a1a] text-white hover:border-primary/50 hover:bg-[#2a2a2a] transition-all font-medium shadow-sm"
+              >
+                <img src="/pieces/k-black.svg" alt="" className="w-6 h-6" />
+                Black
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRandomPick(selectedMode.minutes)}
+                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-all font-medium"
+              >
+                <Shuffle className="w-5 h-5" />
+                Random
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
