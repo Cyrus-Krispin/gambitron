@@ -4,6 +4,8 @@ import Landing from "./pages/Landing";
 import Play from "./pages/Play";
 import About from "./pages/About";
 import Game from "./pages/Game";
+import History from "./pages/History";
+import Replay from "./pages/Replay";
 import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
@@ -20,6 +22,8 @@ export default function App() {
             render={({ match }) => <Redirect to={`/play/new?minutes=${match.params.minutes}`} />}
           />
           <Route exact path="/about" component={About} />
+          <Route exact path="/history" component={History} />
+          <Route exact path="/history/:gameId" component={Replay} />
           <Route exact path="/admin" component={Game} />
         </Switch>
       </Layout>

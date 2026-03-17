@@ -48,17 +48,26 @@ async def get_game(game_id: uuid.UUID) -> dict | None:
         return dict(row)
 
 
-async def list_games(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
-    """List games with pagination. Returns (games, total_count)."""
+async def list_games(
+    limit: int = 20,
+    offset: int = 0,
+    has_pgn: bool | None = None,
+) -> tuple[list[dict], int]:
+    """List games with pagination. Returns (games, total_count).
+    If has_pgn=True, only returns games with non-null PGN."""
     pool = get_pool()
     if not pool:
         return [], 0
     async with pool.acquire() as conn:
-        total = await conn.fetchval("SELECT COUNT(*) FROM games")
+        where = "WHERE pgn IS NOT NULL AND pgn != ''" if has_pgn else ""
+        total = await conn.fetchval(
+            f"SELECT COUNT(*) FROM games {where}"
+        )
         rows = await conn.fetch(
-            """
+            f"""
             SELECT id, created_at, ended_at, time_control_ms, result, termination, player_color
             FROM games
+            {where}
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
             """,

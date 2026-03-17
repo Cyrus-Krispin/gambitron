@@ -1,6 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 
-const navLinks = [{ to: "/about", label: "About" }];
+const navLinks = [
+  { to: "/history", label: "History" },
+  { to: "/about", label: "About" },
+];
 
 export function Layout(props: { children: React.ReactNode }) {
   const location = useLocation();

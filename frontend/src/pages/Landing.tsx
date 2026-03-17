@@ -143,6 +143,10 @@ export default function Landing() {
 
         <div className="mt-8 pt-6 border-t border-border/50">
           <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
+            <Link to="/history" className="hover:text-foreground transition-colors">
+              History
+            </Link>
+            <span className="text-border">·</span>
             <Link to="/about" className="hover:text-foreground transition-colors">
               About
             </Link>

@@ -118,8 +118,9 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 @app.get("/games")
-async def list_games(limit: int = 20, offset: int = 0):
-    games, total = await games_db.list_games(limit=limit, offset=offset)
+async def list_games(limit: int = 20, offset: int = 0, has_pgn: bool | None = None):
+    """List games. Set has_pgn=true to only return games with valid PGN."""
+    games, total = await games_db.list_games(limit=limit, offset=offset, has_pgn=has_pgn)
     return {"games": games, "total": total}
 
 
