@@ -39,16 +39,15 @@ export function ChessBoard({
       const vw = vv ? vv.width : window.innerWidth;
       const vh = vv ? vv.height : window.innerHeight;
       const isMobile = vw < 640;
-      // Mobile: minimal padding (16px sides). Desktop: more room for controls
-      const reservedH = isMobile ? 32 : 48;
-      const reservedV = isMobile ? 180 : 200;
+      const reservedH = isMobile ? 24 : 40;
+      const reservedV = isMobile ? 160 : 180;
       const availW = vw - reservedH;
       const availH = vh - reservedV;
       const maxByW = availW - labelSize;
       const maxByH = availH - labelSize;
       const maxSize = Math.min(maxByW, maxByH);
-      const maxCap = isMobile ? 999 : 640;
-      const clamped = Math.max(220, Math.min(maxSize, maxCap));
+      const maxCap = isMobile ? 999 : 680;
+      const clamped = Math.max(240, Math.min(maxSize, maxCap));
       setSize(Math.floor(clamped));
     };
     update();

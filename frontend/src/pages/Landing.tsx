@@ -36,7 +36,7 @@ export default function Landing() {
         }}
       />
 
-      <section className="relative mx-auto max-w-xl px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 min-h-full">
+      <section className="relative mx-auto max-w-xl px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 min-h-full flex flex-col sm:justify-center">
         <div className="text-center mb-8 sm:mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 mb-4 rounded-2xl bg-primary/10 border border-primary/20">
             <span className="text-4xl sm:text-5xl" aria-hidden={true}>♔</span>
