@@ -39,14 +39,14 @@ def health():
 
 @app.get("/db-check")
 async def db_check():
-    """Verify DB connection and whether games/moves tables exist."""
+    """Verify DB connection and whether games table exists."""
     pool = get_pool()
     if not pool:
         reason = get_connection_error() or "DATABASE_URL not set or pool not created"
         return {
             "connected": False,
             "reason": reason,
-            "tables": {"games": False, "moves": False},
+            "tables": {"games": False},
             "games_count": None,
         }
     try:
@@ -54,7 +54,7 @@ async def db_check():
             tables = await conn.fetch(
                 """
                 SELECT table_name FROM information_schema.tables
-                WHERE table_schema = 'public' AND table_name IN ('games', 'moves')
+                WHERE table_schema = 'public' AND table_name = 'games'
                 """
             )
             found = {r["table_name"] for r in tables}
@@ -63,14 +63,14 @@ async def db_check():
                 count = await conn.fetchval("SELECT COUNT(*) FROM games")
             return {
                 "connected": True,
-                "tables": {"games": "games" in found, "moves": "moves" in found},
+                "tables": {"games": "games" in found},
                 "games_count": count,
             }
     except Exception as e:
         return {
             "connected": False,
             "reason": str(e),
-            "tables": {"games": False, "moves": False},
+            "tables": {"games": False},
             "games_count": None,
         }
 

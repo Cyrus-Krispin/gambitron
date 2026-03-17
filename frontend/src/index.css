@@ -26,6 +26,7 @@
   --ring: oklch(0.5 0.12 195);
   --board-light: #e8dcce;
   --board-dark: #c4a574;
+  --board-highlight: #4a7c4a;
   --chart-1: oklch(0.5 0.12 195);
   --chart-2: oklch(0.5 0.1 180);
   --chart-3: oklch(0.55 0.12 50);
@@ -62,6 +63,7 @@
   --ring: oklch(0.7 0.15 195);
   --board-light: #e8dcce;
   --board-dark: #b58863;
+  --board-highlight: #4a7c4a;
   --chart-1: oklch(0.7 0.15 195);
   --chart-2: oklch(0.65 0.15 180);
   --chart-3: oklch(0.7 0.12 280);

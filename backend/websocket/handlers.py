@@ -73,7 +73,8 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     if not san:
         san = ""
 
-    await moves_db.insert_move(game_id, player_ply, fen, san, from_sq, to_sq)
+    player_captured = data.get("captured")
+    await moves_db.append_move(game_id, player_ply, fen, san, from_sq, to_sq, player_captured)
 
     try:
         board = chess.Board(fen)
@@ -82,7 +83,8 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     if board.is_game_over():
         result = board.result()
         termination = _termination_from_result(result)
-        await games_db.update_game_ended(game_id, result, termination)
+        player_color = game.get("player_color", "white")
+        await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
             "gameId": str(game_id),
@@ -98,11 +100,13 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     ai_san = ai_result.get("san") or ""
     ai_from = ai_result.get("from_square")
     ai_to = ai_result.get("to_square")
-    await moves_db.insert_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to)
+    ai_captured = ai_result.get("captured")
+    await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
     if result and result != "*":
         termination = _termination_from_result(result)
-        await games_db.update_game_ended(game_id, result, termination)
+        player_color = game.get("player_color", "white")
+        await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
             "gameId": str(game_id),
@@ -112,6 +116,7 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
             "aiSan": ai_san,
             "aiFromSquare": ai_from,
             "aiToSquare": ai_to,
+            "captured": ai_captured,
         }
 
     return {
@@ -121,6 +126,7 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
         "san": ai_san,
         "fromSquare": ai_from,
         "toSquare": ai_to,
+        "captured": ai_captured,
     }
 
 
@@ -153,11 +159,13 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
     ai_san = ai_result.get("san") or ""
     ai_from = ai_result.get("from_square")
     ai_to = ai_result.get("to_square")
-    await moves_db.insert_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to)
+    ai_captured = ai_result.get("captured")
+    await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
     if result and result != "*":
         termination = _termination_from_result(result)
-        await games_db.update_game_ended(game_id, result, termination)
+        player_color = game.get("player_color", "white")
+        await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
         return {
             "type": "game_ended",
             "gameId": str(game_id),
@@ -167,6 +175,7 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
             "aiSan": ai_san,
             "aiFromSquare": ai_from,
             "aiToSquare": ai_to,
+            "captured": ai_captured,
         }
 
     return {
@@ -176,6 +185,7 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
         "san": ai_san,
         "fromSquare": ai_from,
         "toSquare": ai_to,
+        "captured": ai_captured,
     }
 
 

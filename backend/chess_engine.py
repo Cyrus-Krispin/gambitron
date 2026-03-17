@@ -1,6 +1,19 @@
 """Chess AI engine - minimax with alpha-beta pruning."""
 import chess
 
+PIECE_TO_SYMBOL = {
+    chess.PAWN: "p",
+    chess.KNIGHT: "n",
+    chess.BISHOP: "b",
+    chess.ROOK: "r",
+    chess.QUEEN: "q",
+}
+
+
+def _piece_to_symbol(piece: chess.Piece) -> str:
+    """Map chess.Piece to lowercase symbol (p, n, b, r, q)."""
+    return PIECE_TO_SYMBOL.get(piece.piece_type, "")
+
 PAWN_VALUE = 100
 KNIGHT_VALUE = 320
 BISHOP_VALUE = 330
@@ -249,6 +262,7 @@ def get_best_move(fen_str: str, depth: int = 3):
             "san": None,
             "from_square": None,
             "to_square": None,
+            "captured": None,
         }
     chosen_move = select_best_move(board_state, depth)
     if chosen_move is None:
@@ -256,6 +270,8 @@ def get_best_move(fen_str: str, depth: int = 3):
     san = board_state.san(chosen_move)
     from_square = chess.square_name(chosen_move.from_square)
     to_square = chess.square_name(chosen_move.to_square)
+    captured_piece = board_state.piece_at(chosen_move.to_square)
+    captured = _piece_to_symbol(captured_piece) if captured_piece else None
     board_state.push(chosen_move)
     return {
         "updated_fen": board_state.fen(),
@@ -263,4 +279,5 @@ def get_best_move(fen_str: str, depth: int = 3):
         "san": san,
         "from_square": from_square,
         "to_square": to_square,
+        "captured": captured,
     }

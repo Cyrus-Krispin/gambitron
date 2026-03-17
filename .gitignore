@@ -1,3 +1,6 @@
 # PEM keys - never commit
 *.pem
 server-key.pem
+
+# PGN game storage
+data/

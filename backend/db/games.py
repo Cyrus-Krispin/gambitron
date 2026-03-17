@@ -82,6 +82,8 @@ async def update_game_ended(
             _memory_games[game_id]["ended_at"] = "now"
             _memory_games[game_id]["result"] = result
             _memory_games[game_id]["termination"] = termination
+            if pgn is not None:
+                _memory_games[game_id]["pgn"] = pgn
         return True
     async with pool.acquire() as conn:
         await conn.execute(

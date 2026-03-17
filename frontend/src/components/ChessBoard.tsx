@@ -114,13 +114,12 @@ export function ChessBoard({
                     transition-colors duration-150
                     ${isLight ? "bg-[var(--board-light)]" : "bg-[var(--board-dark)]"}
                     ${isSelected ? "bg-[#CDD26A] ring-2 ring-inset ring-primary/40" : ""}
-                    ${isHighlight && !piece ? "" : ""}
-                    ${isHighlight && piece ? "ring-2 ring-inset ring-primary/50" : ""}
+                    ${isHighlight && piece ? "ring-2 ring-inset ring-[var(--board-highlight)]" : ""}
                   `}
                   style={{ gridColumn: colIdx + 2, gridRow: rowIdx + 1, width: tileSize, height: tileSize }}
                 >
                   {isHighlight && !piece && (
-                    <div className="absolute w-1/4 h-1/4 rounded-full bg-foreground/20" />
+                    <div className="absolute w-1/4 h-1/4 rounded-full bg-[var(--board-highlight)]/70" />
                   )}
                   {piece && (
                     <ChessPiece

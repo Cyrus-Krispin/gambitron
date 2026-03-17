@@ -72,7 +72,6 @@ export default function Play() {
             <CaptureDisplay
               pieces={game.playerColor === "white" ? game.capturedPieces.byBlack : game.capturedPieces.byWhite}
               pieceColor={game.playerColor === "white" ? "white" : "black"}
-              label="Opponent's captures"
             />
           </div>
 
@@ -101,7 +100,7 @@ export default function Play() {
               <CaptureDisplay
                 pieces={game.playerColor === "white" ? game.capturedPieces.byWhite : game.capturedPieces.byBlack}
                 pieceColor={game.playerColor === "white" ? "black" : "white"}
-                label="Your captures"
+                materialDiff={game.materialDiff}
               />
             </div>
             <div className="flex items-center gap-2">

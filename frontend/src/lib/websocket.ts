@@ -13,6 +13,7 @@ export interface PlayerMovePayload {
   san?: string;
   from?: string;
   to?: string;
+  captured?: string;
 }
 
 export interface PromotionMovePayload {
@@ -22,6 +23,7 @@ export interface PromotionMovePayload {
   from: string;
   to: string;
   promotion: "q" | "r" | "b" | "n";
+  captured?: string;
 }
 
 export interface RequestAIMovePayload {
@@ -55,6 +57,7 @@ export interface AIMoveMessage {
   san?: string;
   fromSquare?: string;
   toSquare?: string;
+  captured?: string;
 }
 
 export interface GameEndedMessage {
@@ -66,6 +69,7 @@ export interface GameEndedMessage {
   aiSan?: string;
   aiFromSquare?: string;
   aiToSquare?: string;
+  captured?: string;
 }
 
 export interface ErrorMessage {

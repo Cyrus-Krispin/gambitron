@@ -1,11 +1,10 @@
-# Database Migrations
+# Database Schema
 
-## Create tables in Supabase
+## Create from scratch in Supabase
 
 1. Open [Supabase Dashboard](https://supabase.com/dashboard) → your project
 2. Go to **SQL Editor** → **New query**
-3. Copy and paste the contents of `001_schema.sql`
-4. Click **Run**
+3. Copy and paste the contents of `schema.sql`, then run
 
 ## Verify connection
 
@@ -19,9 +18,9 @@ Expected when working:
 ```json
 {
   "connected": true,
-  "tables": {"games": true, "moves": true},
+  "tables": {"games": true},
   "games_count": 0
 }
 ```
 
-If `connected: false`, check the `reason` field for the error (e.g. wrong password, tables missing).
+Completed games are stored as PGN in `games.pgn`. If `connected: false`, check the `reason` field for the error (e.g. wrong password, tables missing).
