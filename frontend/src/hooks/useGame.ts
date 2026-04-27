@@ -121,7 +121,8 @@ export function useGame(options?: UseGameOptions) {
         if (!res.ok) throw new Error(`Backend error: ${res.status}`);
         const data = await res.json();
         if (data.updated_fen) {
-          setMoveHistory((prev) => [...prev, { captured: data.captured, color: aiTurn }]);
+          const moveData = data.move || {};
+          setMoveHistory((prev) => [...prev, { captured: data.captured, color: aiTurn, from: moveData.from, to: moveData.to }]);
           chess.load(data.updated_fen);
           setBoardState(chess.board());
           setPlayerHasMoved(true);
@@ -220,12 +221,12 @@ export function useGame(options?: UseGameOptions) {
       setPendingPromotionFrom(null);
       setPendingPromotionTo(null);
       if (!move) return;
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
+      const captured = (move as { captured?: string }).captured;
       setBoardState(chess.board());
       setSelectedSquare(null);
       setValidMoves([]);
-      const captured = (move as { captured?: string }).captured;
-      const from = (move as { from: string }).from;
-      const to = (move as { to: string }).to;
       setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
@@ -299,9 +300,12 @@ export function useGame(options?: UseGameOptions) {
       setSelectedSquare(null);
       setValidMoves([]);
       if (!move) return;
-      setBoardState(chess.board());
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
       const captured = (move as { captured?: string }).captured;
-      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from: selectedSquare, to: squareName }]);
+      const san = (move as { san: string }).san;
+      setBoardState(chess.board());
+      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
       if (chess.isGameOver()) {
@@ -309,9 +313,6 @@ export function useGame(options?: UseGameOptions) {
         return;
       }
       const fen = chess.fen();
-      const from = (move as { from: string }).from;
-      const to = (move as { to: string }).to;
-      const san = (move as { san: string }).san;
       sendPlayerMove(fen, san, from, to, captured);
     },
     [
@@ -395,7 +396,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -414,7 +415,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
             }
             if (m.updatedFen) {
               try {
@@ -527,7 +528,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -546,7 +547,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
             }
             if (m.updatedFen) {
               try {

@@ -116,6 +116,7 @@ export function ChessBoard({
                     relative flex items-center justify-center
                     transition-colors duration-150
                     ${isHighlight && piece ? "ring-2 ring-inset ring-[var(--board-highlight)]" : ""}
+                    ${isLastMoveSquare ? "bg-[#BACA44]/60" : ""}
                   `}
                   style={{
                     backgroundColor: isSelected ? "#CDD26A" : isLastMoveSquare ? "#CDD26A" : (isLight ? "var(--board-light)" : "var(--board-dark)"),

@@ -9,6 +9,7 @@ from fastapi import WebSocket
 from chess_engine import get_best_move
 from db import games as games_db
 from db import moves as moves_db
+from game_rules import check_3_move_repetition
 from websocket import connection_manager
 from websocket import timers as timers_module
 
@@ -107,6 +108,19 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
         board = chess.Board(fen)
     except ValueError:
         return {"type": "error", "message": "Invalid FEN"}
+
+    # Check for draw by 3-move repetition after player move
+    all_moves = await moves_db.get_moves_by_game(game_id)
+    if check_3_move_repetition(all_moves):
+        timers_module.remove_game(game_id)
+        await moves_db.finalize_game_to_pgn(game_id, "1/2-1/2", "threefold repetition", player_color)
+        return {
+            "type": "game_ended",
+            "gameId": str(game_id),
+            "result": "1/2-1/2",
+            "termination": "threefold repetition",
+        }
+
     if board.is_game_over():
         result = board.result()
         termination = _termination_from_result(result)
@@ -134,6 +148,23 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
     timers_module.update_fen(game_id, updated_fen)
+
+    # Check for draw by 3-move repetition after AI move
+    all_moves = await moves_db.get_moves_by_game(game_id)
+    if check_3_move_repetition(all_moves):
+        timers_module.remove_game(game_id)
+        await moves_db.finalize_game_to_pgn(game_id, "1/2-1/2", "threefold repetition", player_color)
+        return {
+            "type": "game_ended",
+            "gameId": str(game_id),
+            "result": "1/2-1/2",
+            "termination": "threefold repetition",
+            "updatedFen": updated_fen,
+            "aiSan": ai_san,
+            "aiFromSquare": ai_from,
+            "aiToSquare": ai_to,
+            "captured": ai_captured,
+        }
 
     if result and result != "*":
         termination = _termination_from_result(result)
@@ -215,6 +246,23 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
 
     timers_module.update_fen(game_id, updated_fen)
     timers_module.clear_ai_first_move_pending(game_id)
+
+    # Check for draw by 3-move repetition after AI move
+    all_moves = await moves_db.get_moves_by_game(game_id)
+    if check_3_move_repetition(all_moves):
+        timers_module.remove_game(game_id)
+        await moves_db.finalize_game_to_pgn(game_id, "1/2-1/2", "threefold repetition", player_color)
+        return {
+            "type": "game_ended",
+            "gameId": str(game_id),
+            "result": "1/2-1/2",
+            "termination": "threefold repetition",
+            "updatedFen": updated_fen,
+            "aiSan": ai_san,
+            "aiFromSquare": ai_from,
+            "aiToSquare": ai_to,
+            "captured": ai_captured,
+        }
 
     if result and result != "*":
         termination = _termination_from_result(result)
