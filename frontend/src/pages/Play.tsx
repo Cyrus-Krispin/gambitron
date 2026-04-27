@@ -1,12 +1,42 @@
-import { useParams, useLocation, useHistory, Link } from "react-router-dom";
+import { useParams, useLocation, useHistory } from "react-router-dom";
 import { useGame } from "@/hooks/useGame";
 import { ChessBoard } from "@/components/ChessBoard";
 import { CaptureDisplay } from "@/components/CaptureDisplay";
 import { TimerCard } from "@/components/TimerCard";
 import { Dialogs } from "@/components/Dialogs";
-import { Button } from "@/components/ui/button";
 
-const VALID_MINUTES = [1, 3, 5, 10, 15, 30];
+const VALID_MINUTES = [1, 2, 3, 5, 10, 15, 30];
+
+function MoveList({ moves }: { moves: Array<{ from?: string; to?: string; color: "w" | "b"; san?: string }> }) {
+  if (moves.length === 0) {
+    return (
+      <div className="move-list">
+        <div className="empty">— awaiting first move —</div>
+      </div>
+    );
+  }
+
+  const pairs: [typeof moves[0], typeof moves[0] | undefined][] = [];
+  for (let i = 0; i < moves.length; i += 2) {
+    pairs.push([moves[i], moves[i + 1]]);
+  }
+
+  return (
+    <div className="move-list">
+      {pairs.map(([w, b], i) => {
+        const wText = w?.san || (w?.from && w?.to ? `${w.from}${w.to}` : "—");
+        const bText = b ? (b.san || (b.from && b.to ? `${b.from}${b.to}` : "—")) : "";
+        return (
+          <div key={i} style={{ display: "contents" }}>
+            <span className="num">{i + 1}.</span>
+            <span className="mv">{wText}</span>
+            <span className="mv">{bText}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Play() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -17,8 +47,13 @@ export default function Play() {
   const parsed = minutesParam ? parseInt(minutesParam, 10) : NaN;
   const initialMinutes = VALID_MINUTES.includes(parsed) ? parsed : 5;
   const colorParam = search.get("color");
-  const initialColor = colorParam === "white" || colorParam === "black" ? colorParam : undefined;
-  const initialGameState = (location.state as { gameState?: { fen: string; timeControlMs: number; playerColor: "white" | "black" } })?.gameState;
+  const initialColor =
+    colorParam === "white" || colorParam === "black" ? colorParam : undefined;
+  const initialGameState = (
+    location.state as {
+      gameState?: { fen: string; timeControlMs: number; playerColor: "white" | "black" };
+    }
+  )?.gameState;
 
   const game = useGame({
     gameId: gameId ?? null,
@@ -30,95 +65,191 @@ export default function Play() {
     },
   });
 
+  const playerColor = game.playerColor;
+  const botColor = playerColor === "white" ? "black" : "white";
+
+  const botTimeMs = playerColor === "white" ? game.aiTimeMs : game.playerTimeMs;
+  const myTimeMs = playerColor === "white" ? game.playerTimeMs : game.aiTimeMs;
+  const isBotActive = !game.isPlayersTurn && !game.gameEnded;
+  const isMyActive = game.isPlayersTurn && !game.gameEnded;
+  const myLow = myTimeMs < 30000;
+  const botLow = botTimeMs < 30000;
+
+  const myCaptures =
+    playerColor === "white"
+      ? game.capturedPieces.byWhite
+      : game.capturedPieces.byBlack;
+  const botCaptures =
+    playerColor === "white"
+      ? game.capturedPieces.byBlack
+      : game.capturedPieces.byWhite;
+
+  const timeLabel = `${initialMinutes}+0`;
+
   return (
-    <div className="min-h-[calc(100dvh-3.5rem)] flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-1.5 py-3 sm:px-4 sm:py-4 min-h-0">
-        <div className="flex flex-col items-center gap-2 sm:gap-3 w-full max-w-[720px] min-w-0">
-          {/* Inline color picker - only when no color from URL (e.g. direct /play/5) */}
-          {game.startOpen && (
-            <div className="flex items-center gap-3 py-2 px-4 rounded-lg bg-muted/60 border border-border/60">
-              <span className="text-sm font-medium text-muted-foreground">Play as</span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => game.onStartGame("white")}
-                  className="gap-1.5"
-                >
-                  <img src="/pieces/k-white.svg" alt="" className="w-5 h-5" />
-                  White
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => game.onStartGame("black")}
-                  className="gap-1.5"
-                >
-                  <img src="/pieces/k-black.svg" alt="" className="w-5 h-5" />
-                  Black
-                </Button>
-              </div>
+    <div className="game fade-in">
+      {/* Left: board area */}
+      <div className="board-wrap">
+        {/* Opponent strip */}
+        <div className="player-strip">
+          <div className="who">
+            <div className="avatar">G</div>
+            <div className="meta">
+              <div className="name">Gambit</div>
+              <div className="sub">Bot · 1420 · {botColor}</div>
             </div>
-          )}
-
-          {/* Top: AI timer + opponent's captures (their side) */}
-          <div className="flex items-center justify-between w-full gap-4">
-            <TimerCard
-              label="Gambitron"
-              timeMs={game.aiTimeMs}
-              isActive={!game.isPlayersTurn}
-              compact
-            />
-            <CaptureDisplay
-              pieces={game.playerColor === "white" ? game.capturedPieces.byBlack : game.capturedPieces.byWhite}
-              pieceColor={game.playerColor === "white" ? "white" : "black"}
-            />
           </div>
+          <CaptureDisplay
+            pieces={botCaptures}
+            pieceColor={botColor}
+          />
+          <TimerCard
+            timeMs={botTimeMs}
+            isActive={isBotActive}
+            isLow={botLow}
+          />
+        </div>
 
-          {/* Board */}
+        {/* Board */}
+        <div className="board-frame">
           <ChessBoard
             boardState={game.boardState}
             selectedSquare={game.selectedSquare}
             validMoves={game.validMoves}
             gameEnded={game.gameEnded}
             startOpen={game.startOpen}
-            orientation={game.playerColor}
+            orientation={playerColor}
             onTileClick={game.onTileClick}
             HORIZONTAL={game.HORIZONTAL}
             VERTICAL={game.VERTICAL}
             lastMove={game.lastMove}
           />
 
-          {/* Bottom: Your timer + your captures + new game */}
-          <div className="flex items-center justify-between w-full gap-4">
-            <div className="flex items-center gap-6">
-              <TimerCard
-                label="You"
-                timeMs={game.playerTimeMs}
-                isActive={game.isPlayersTurn}
-                compact
-              />
-              <CaptureDisplay
-                pieces={game.playerColor === "white" ? game.capturedPieces.byWhite : game.capturedPieces.byBlack}
-                pieceColor={game.playerColor === "white" ? "black" : "white"}
-                materialDiff={game.materialDiff}
-              />
+          {/* Color picker overlay when startOpen */}
+          {game.startOpen && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "oklch(0.18 0.008 60 / 0.85)",
+                backdropFilter: "blur(2px)",
+                gap: 16,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 10,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-faint)",
+                  marginBottom: 8,
+                }}
+              >
+                Play as
+              </div>
+              <div style={{ display: "flex", gap: 1, background: "var(--line-soft)" }}>
+                {(["white", "black"] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => game.onStartGame(c)}
+                    style={{
+                      background: "var(--bg-card)",
+                      padding: "18px 28px",
+                      fontFamily: "var(--mono)",
+                      fontSize: 11,
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-dim)",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <img src={`/pieces/k-${c}.svg`} alt={c} style={{ width: 40, height: 40 }} />
+                    {c}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/">Home</Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link
-                  to={`/play/new?minutes=${Math.max(1, Math.round(game.initialTimeMs / 60000))}${game.playerColor ? `&color=${game.playerColor}` : ""}`}
-                >
-                  New Game
-                </Link>
-              </Button>
+          )}
+        </div>
+
+        {/* Your strip */}
+        <div className="player-strip">
+          <div className="who">
+            <div className="avatar">Y</div>
+            <div className="meta">
+              <div className="name">You</div>
+              <div className="sub">Player · {playerColor}</div>
             </div>
           </div>
+          <CaptureDisplay
+            pieces={myCaptures}
+            pieceColor={playerColor}
+            materialDiff={game.materialDiff > 0 ? game.materialDiff : 0}
+          />
+          <TimerCard
+            timeMs={myTimeMs}
+            isActive={isMyActive}
+            isLow={myLow}
+          />
         </div>
       </div>
+
+      {/* Right rail */}
+      <aside className="rail">
+        <section className="card">
+          <div className="card-head">
+            <span className="title">Match</span>
+            <span
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 11,
+                color: "var(--ink-faint)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              {timeLabel}
+            </span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <div className="actions">
+              <button type="button" onClick={() => history.push("/")}>Exit</button>
+              <button type="button" onClick={game.handleNewGame}>Reset</button>
+              <button type="button" onClick={() => {}}>Offer Draw</button>
+              <button type="button" className="warn" onClick={() => {}}>Resign</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card" style={{ flex: 1 }}>
+          <div className="card-head">
+            <span className="title">Move list</span>
+            <span
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 11,
+                color: "var(--ink-faint)",
+              }}
+            >
+              {game.moveHistory.length}
+            </span>
+          </div>
+          <div className="card-body">
+            <MoveList moves={game.moveHistory} />
+          </div>
+        </section>
+      </aside>
 
       <Dialogs
         promotionOpen={game.promotionOpen}

@@ -1,34 +1,29 @@
 interface TimerCardProps {
-  label: string;
   timeMs: number;
   isActive: boolean;
-  compact?: boolean;
+  isLow?: boolean;
 }
 
-export function TimerCard({ label, timeMs, isActive, compact }: TimerCardProps) {
-  const m = Math.floor(timeMs / 60000);
-  const s = Math.floor((timeMs % 60000) / 1000);
-  const timeStr = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+export function TimerCard({ timeMs, isActive, isLow }: TimerCardProps) {
+  const total = Math.max(0, timeMs);
+  const m = Math.floor(total / 60000);
+  const s = Math.floor((total % 60000) / 1000);
 
-  return (
-    <div className="text-center">
-      <div
-        className={`font-mono font-bold tabular-nums transition-colors duration-300 ${
-          compact ? "text-lg" : "text-2xl sm:text-3xl lg:text-4xl"
-        } ${isActive ? "text-primary" : "text-muted-foreground"}`}
-      >
-        {timeStr}
-      </div>
-      <div className="flex items-center justify-center gap-2 mt-1">
-        <div
-          className={`w-2 h-2 rounded-full transition-all duration-300 ${
-          isActive ? "bg-primary shadow-[0_0_8px_var(--primary)]" : "bg-muted-foreground"
-          }`}
-        />
-        <span className={`font-medium ${compact ? "text-xs" : "text-sm"} ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-          {label}
-        </span>
-      </div>
-    </div>
-  );
+  let display: string;
+  if (total < 20000) {
+    const tenths = Math.floor((total % 1000) / 100);
+    display = `${m}:${String(s).padStart(2, "0")}.${tenths}`;
+  } else {
+    display = `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  const cls = [
+    "clock",
+    isActive ? "active" : "",
+    isLow ? "low" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return <div className={cls}>{display}</div>;
 }

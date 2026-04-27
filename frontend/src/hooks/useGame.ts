@@ -77,7 +77,7 @@ export function useGame(options?: UseGameOptions) {
   const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? initialGameState?.playerColor ?? "white");
 
   const [fenInput, setFenInput] = useState("");
-  const [moveHistory, setMoveHistory] = useState<Array<{ captured?: string; color: "w" | "b"; from?: string; to?: string }>>([]);
+  const [moveHistory, setMoveHistory] = useState<Array<{ captured?: string; color: "w" | "b"; from?: string; to?: string; san?: string }>>([]);
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin";
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -305,7 +305,7 @@ export function useGame(options?: UseGameOptions) {
       const captured = (move as { captured?: string }).captured;
       const san = (move as { san: string }).san;
       setBoardState(chess.board());
-      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to }]);
+      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
       if (chess.isGameOver()) {
@@ -396,7 +396,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare, san: m.san }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -415,7 +415,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare, san: m.aiSan }]);
             }
             if (m.updatedFen) {
               try {
@@ -528,7 +528,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare, san: m.san }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -547,7 +547,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare, san: m.aiSan }]);
             }
             if (m.updatedFen) {
               try {
@@ -796,6 +796,7 @@ export function useGame(options?: UseGameOptions) {
     capturedPieces,
     materialDiff,
     lastMove,
+    moveHistory,
     onLoadFen: () => {
       if (!fenInput.trim()) {
         setErrorMessage("Please enter a FEN string");
