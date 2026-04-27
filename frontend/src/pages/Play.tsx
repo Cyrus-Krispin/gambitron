@@ -86,6 +86,7 @@ export default function Play() {
             onTileClick={game.onTileClick}
             HORIZONTAL={game.HORIZONTAL}
             VERTICAL={game.VERTICAL}
+            lastMove={game.lastMove}
           />
 
           {/* Bottom: Your timer + your captures + new game */}
