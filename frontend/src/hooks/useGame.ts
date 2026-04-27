@@ -77,7 +77,7 @@ export function useGame(options?: UseGameOptions) {
   const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? initialGameState?.playerColor ?? "white");
 
   const [fenInput, setFenInput] = useState("");
-  const [moveHistory, setMoveHistory] = useState<Array<{ captured?: string; color: "w" | "b" }>>([]);
+  const [moveHistory, setMoveHistory] = useState<Array<{ captured?: string; color: "w" | "b"; from?: string; to?: string }>>([]);
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin";
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -224,7 +224,9 @@ export function useGame(options?: UseGameOptions) {
       setSelectedSquare(null);
       setValidMoves([]);
       const captured = (move as { captured?: string }).captured;
-      setMoveHistory((prev) => [...prev, { captured, color: playerTurn }]);
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
+      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
       if (chess.isGameOver()) {
@@ -232,8 +234,6 @@ export function useGame(options?: UseGameOptions) {
         return;
       }
       const fen = chess.fen();
-      const from = (move as { from: string }).from;
-      const to = (move as { to: string }).to;
       sendPromotionMove(fen, from, to, piece, captured);
     },
     [chess, pendingPromotionFrom, pendingPromotionTo, playerHasMoved, openEndgame, sendPromotionMove, playerTurn]
@@ -301,7 +301,7 @@ export function useGame(options?: UseGameOptions) {
       if (!move) return;
       setBoardState(chess.board());
       const captured = (move as { captured?: string }).captured;
-      setMoveHistory((prev) => [...prev, { captured, color: playerTurn }]);
+      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from: selectedSquare, to: squareName }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
       if (chess.isGameOver()) {
@@ -710,6 +710,8 @@ export function useGame(options?: UseGameOptions) {
 
   const VERTICAL = playerColor === "white" ? VERTICAL_WHITE : VERTICAL_BLACK;
 
+  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+
   const { capturedPieces, materialDiff } = useMemo(() => {
     const byWhite: string[] = [];
     const byBlack: string[] = [];
@@ -792,6 +794,7 @@ export function useGame(options?: UseGameOptions) {
     setFenInput,
     capturedPieces,
     materialDiff,
+    lastMove,
     onLoadFen: () => {
       if (!fenInput.trim()) {
         setErrorMessage("Please enter a FEN string");
