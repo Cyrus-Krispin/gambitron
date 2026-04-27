@@ -115,12 +115,17 @@ export function ChessBoard({
                   className={`
                     relative flex items-center justify-center
                     transition-colors duration-150
-                    ${isLight ? "bg-[var(--board-light)]" : "bg-[var(--board-dark)]"}
-                    ${isSelected ? "bg-[#CDD26A] ring-2 ring-inset ring-primary/40" : ""}
                     ${isHighlight && piece ? "ring-2 ring-inset ring-[var(--board-highlight)]" : ""}
                     ${isLastMoveSquare ? "bg-[#BACA44]/60" : ""}
                   `}
-                  style={{ gridColumn: colIdx + 2, gridRow: rowIdx + 1, width: tileSize, height: tileSize }}
+                  style={{
+                    backgroundColor: isSelected ? "#CDD26A" : isLastMoveSquare ? "#CDD26A" : (isLight ? "var(--board-light)" : "var(--board-dark)"),
+                    boxShadow: isSelected ? "inset 0 0 0 2px rgba(var(--primary-rgb), 0.4)" : undefined,
+                    gridColumn: colIdx + 2,
+                    gridRow: rowIdx + 1,
+                    width: tileSize,
+                    height: tileSize
+                  }}
                 >
                   {isHighlight && !piece && (
                     <div className="absolute w-1/4 h-1/4 rounded-full bg-[var(--board-highlight)]/70" />
