@@ -17,6 +17,7 @@ interface ChessBoardProps {
   onTileClick: (square: string) => void;
   HORIZONTAL: string[];
   VERTICAL: string[];
+  lastMove?: { from?: string; to?: string } | null;
 }
 
 export function ChessBoard({
@@ -29,6 +30,7 @@ export function ChessBoard({
   onTileClick,
   HORIZONTAL,
   VERTICAL,
+  lastMove,
 }: ChessBoardProps) {
   const [size, setSize] = useState(320);
   const labelSize = 18;
@@ -103,6 +105,7 @@ export function ChessBoard({
               const isLight = (rowIdx + colIdx) % 2 === 0;
               const isSelected = selectedSquare === squareName;
               const isHighlight = validMoves.includes(squareName);
+              const isLastMoveSquare = lastMove && (squareName === lastMove.from || squareName === lastMove.to);
 
               return (
                 <button
@@ -115,6 +118,7 @@ export function ChessBoard({
                     ${isLight ? "bg-[var(--board-light)]" : "bg-[var(--board-dark)]"}
                     ${isSelected ? "bg-[#CDD26A] ring-2 ring-inset ring-primary/40" : ""}
                     ${isHighlight && piece ? "ring-2 ring-inset ring-[var(--board-highlight)]" : ""}
+                    ${isLastMoveSquare ? "bg-[#BACA44]/60" : ""}
                   `}
                   style={{ gridColumn: colIdx + 2, gridRow: rowIdx + 1, width: tileSize, height: tileSize }}
                 >

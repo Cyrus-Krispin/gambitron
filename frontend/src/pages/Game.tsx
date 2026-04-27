@@ -71,6 +71,7 @@ export default function Game() {
           onTileClick={game.onTileClick}
           HORIZONTAL={game.HORIZONTAL}
           VERTICAL={game.VERTICAL}
+          lastMove={game.lastMove}
         />
       </main>
 
