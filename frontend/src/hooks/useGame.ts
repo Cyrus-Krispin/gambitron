@@ -396,8 +396,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            const moveData = m.move || {};
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: moveData.from, to: moveData.to }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -416,8 +415,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              const moveData = m.move || {};
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: moveData.from, to: moveData.to }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
             }
             if (m.updatedFen) {
               try {
@@ -530,8 +528,7 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as AIMoveMessage;
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
-            const moveData = m.move || {};
-            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: moveData.from, to: moveData.to }]);
+            setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.fromSquare, to: m.toSquare }]);
             if (m.updatedFen) {
               try {
                 chess.load(m.updatedFen);
@@ -550,8 +547,7 @@ export function useGame(options?: UseGameOptions) {
             const aiColor = playerColorRef.current === "white" ? "b" : "w";
             setAiThinking(false);
             if (m.captured) {
-              const moveData = m.move || {};
-              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: moveData.from, to: moveData.to }]);
+              setMoveHistory((prev) => [...prev, { captured: m.captured, color: aiColor, from: m.aiFromSquare, to: m.aiToSquare }]);
             }
             if (m.updatedFen) {
               try {
