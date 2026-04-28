@@ -84,8 +84,6 @@ export default function Play() {
       ? game.capturedPieces.byBlack
       : game.capturedPieces.byWhite;
 
-  const timeLabel = `${initialMinutes}+0`;
-
   return (
     <div className="game fade-in">
       {/* Left: board area */}
