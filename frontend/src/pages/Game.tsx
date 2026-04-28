@@ -32,12 +32,10 @@ export default function Game() {
       {!game.isAdmin && (
         <div className="lg:hidden flex-shrink-0 px-4 py-3 border-b border-border bg-card/30 flex items-center justify-center gap-6">
           <TimerCard
-            label="Gambitron"
             timeMs={game.aiTimeMs}
             isActive={!game.isPlayersTurn}
           />
           <TimerCard
-            label="You"
             timeMs={game.playerTimeMs}
             isActive={game.isPlayersTurn}
           />
@@ -79,12 +77,10 @@ export default function Game() {
       {!game.isAdmin && (
         <aside className="hidden lg:flex flex-col items-center justify-center gap-8 p-6 border-l border-border bg-card/30">
           <TimerCard
-            label="Gambitron"
             timeMs={game.aiTimeMs}
             isActive={!game.isPlayersTurn}
           />
           <TimerCard
-            label="You"
             timeMs={game.playerTimeMs}
             isActive={game.isPlayersTurn}
           />
