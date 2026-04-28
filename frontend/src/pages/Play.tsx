@@ -84,8 +84,6 @@ export default function Play() {
       ? game.capturedPieces.byBlack
       : game.capturedPieces.byWhite;
 
-  const timeLabel = `${initialMinutes}+0`;
-
   return (
     <div className="game fade-in">
       {/* Left: board area */}
@@ -207,31 +205,6 @@ export default function Play() {
 
       {/* Right rail */}
       <aside className="rail">
-        <section className="card">
-          <div className="card-head">
-            <span className="title">Match</span>
-            <span
-              style={{
-                fontFamily: "var(--mono)",
-                fontSize: 11,
-                color: "var(--ink-faint)",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-              }}
-            >
-              {timeLabel}
-            </span>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="actions">
-              <button type="button" onClick={() => history.push("/")}>Exit</button>
-              <button type="button" onClick={game.handleNewGame}>Reset</button>
-              <button type="button" onClick={() => {}}>Offer Draw</button>
-              <button type="button" className="warn" onClick={() => {}}>Resign</button>
-            </div>
-          </div>
-        </section>
-
         <section className="card" style={{ flex: 1 }}>
           <div className="card-head">
             <span className="title">Move list</span>
