@@ -1037,16 +1037,32 @@ body.hide-coords .square .coord { display: none; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 980px) {
+  /* Break the fixed-height chain so mobile scrolls naturally */
+  html, body { height: auto; min-height: 100%; }
+  #root { height: auto; min-height: 100%; }
+  .app { height: auto; min-height: 100%; }
+
   .game {
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 16px 16px 32px;
+    flex: none;
+    min-height: unset;
   }
   .replay {
     grid-template-columns: 1fr;
     padding: 16px 16px 32px;
+    flex: none;
+    min-height: unset;
   }
   .board-frame { flex: none; }
+
+  /* On mobile, board sizes from its width (frame has no definite height) */
+  .board {
+    height: auto;
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 860px) {
