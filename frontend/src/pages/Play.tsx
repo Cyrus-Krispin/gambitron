@@ -207,28 +207,6 @@ export default function Play() {
 
       {/* Right rail */}
       <aside className="rail">
-        <section className="card">
-          <div className="card-head">
-            <span className="title">Match</span>
-            <span
-              style={{
-                fontFamily: "var(--mono)",
-                fontSize: 11,
-                color: "var(--ink-faint)",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-              }}
-            >
-              {timeLabel}
-            </span>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="actions">
-              <button type="button" className="warn" style={{ gridColumn: "1 / -1" }} onClick={() => {}}>Resign</button>
-            </div>
-          </div>
-        </section>
-
         <section className="card" style={{ flex: 1 }}>
           <div className="card-head">
             <span className="title">Move list</span>
