@@ -357,7 +357,7 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 32px;
-  padding: 28px 32px 40px;
+  padding: 16px 32px 24px;
   max-width: 1300px;
   margin: 0 auto;
   width: 100%;
@@ -367,17 +367,17 @@ a { color: inherit; text-decoration: none; }
 .board-wrap {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
-  height: 100%;
 }
 
 .player-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 6px 0;
+  gap: 8px;
+  padding: 2px 0;
+  flex-shrink: 0;
 }
 .player-strip .who {
   display: flex;
@@ -385,23 +385,23 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 .who .avatar {
-  width: 36px; height: 36px;
+  width: 28px; height: 28px;
   background: var(--bg-elev);
   border: 1px solid var(--line-soft);
   display: grid; place-items: center;
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 14px;
   color: var(--accent);
   flex-shrink: 0;
 }
 .who .meta .name {
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 14px;
   letter-spacing: -0.005em;
 }
 .who .meta .sub {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -432,13 +432,13 @@ a { color: inherit; text-decoration: none; }
 /* Clock */
 .clock {
   font-family: var(--serif);
-  font-size: 28px;
+  font-size: 20px;
   letter-spacing: 0.04em;
   background: var(--bg-elev);
   border: 1px solid var(--line-soft);
-  padding: 8px 16px;
+  padding: 5px 12px;
   font-variant-numeric: tabular-nums;
-  min-width: 100px;
+  min-width: 80px;
   text-align: center;
   transition: background 200ms, color 200ms, border-color 200ms;
   flex-shrink: 0;
@@ -467,14 +467,13 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: 100%;
+  aspect-ratio: 1;
   height: 100%;
-  aspect-ratio: 1 / 1;
+  max-width: 100%;
   position: relative;
   user-select: none;
   border: 1px solid var(--line);
   align-self: center;
-  justify-self: center;
 }
 
 .square {
