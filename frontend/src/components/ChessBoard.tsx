@@ -1,4 +1,3 @@
-import React from "react";
 import { ChessPiece } from "./ChessPiece";
 import type { PlayerColor } from "@/hooks/useGame";
 
