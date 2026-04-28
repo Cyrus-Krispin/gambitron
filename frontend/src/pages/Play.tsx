@@ -224,10 +224,7 @@ export default function Play() {
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             <div className="actions">
-              <button type="button" onClick={() => history.push("/")}>Exit</button>
-              <button type="button" onClick={game.handleNewGame}>Reset</button>
-              <button type="button" onClick={() => {}}>Offer Draw</button>
-              <button type="button" className="warn" onClick={() => {}}>Resign</button>
+              <button type="button" className="warn" style={{ gridColumn: "1 / -1" }} onClick={() => {}}>Resign</button>
             </div>
           </div>
         </section>
