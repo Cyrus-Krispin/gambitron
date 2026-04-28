@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Chess } from "chess.js";
-import { ChevronLeft, ChevronRight, RotateCcw, RotateCw } from "lucide-react";
 import { ChessBoard } from "@/components/ChessBoard";
-import { Button } from "@/components/ui/button";
 
 const HORIZONTAL = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const VERTICAL_WHITE = ["8", "7", "6", "5", "4", "3", "2", "1"];
@@ -15,31 +13,26 @@ interface MoveInfo {
   san: string;
   from_square?: string;
   to_square?: string;
-  captured?: string;
 }
 
-function fenToBoardState(fen: string): { type: string; color: "w" | "b" }[][] {
+function fenToBoardState(fen: string) {
   const chess = new Chess(fen);
-  const board = chess.board();
-  return board.map((row) =>
-    row.map((sq) =>
-      sq ? { type: sq.type, color: sq.color } : null
-    )
+  return chess.board().map((row) =>
+    row.map((sq) => (sq ? { type: sq.type, color: sq.color } : null))
   ) as { type: string; color: "w" | "b" }[][];
 }
 
-/** Group moves into PGN-style pairs: 1. e4 e5 2. Nf3 ... */
-function buildMovePairs(moves: MoveInfo[]): { num: number; white?: string; black?: string }[] {
-  const pairs: { num: number; white?: string; black?: string }[] = [];
+function buildMovePairs(moves: MoveInfo[]) {
+  const pairs: { num: number; white?: { san: string; ply: number }; black?: { san: string; ply: number } }[] = [];
   for (let i = 0; i < moves.length; i++) {
     const ply = moves[i].ply;
     const moveNum = Math.ceil(ply / 2);
     if (ply % 2 === 1) {
-      pairs.push({ num: moveNum, white: moves[i].san });
+      pairs.push({ num: moveNum, white: { san: moves[i].san, ply } });
     } else {
       const last = pairs[pairs.length - 1];
-      if (last) last.black = moves[i].san;
-      else pairs.push({ num: moveNum, black: moves[i].san });
+      if (last) last.black = { san: moves[i].san, ply };
+      else pairs.push({ num: moveNum, black: { san: moves[i].san, ply } });
     }
   }
   return pairs;
@@ -66,10 +59,7 @@ export default function Replay() {
     ])
       .then(([g, m]) => {
         if (cancelled) return;
-        if (!g || !m?.moves?.length) {
-          setError("Game not found or has no moves");
-          return;
-        }
+        if (!g || !m?.moves?.length) { setError("Game not found or has no moves"); return; }
         setGame(g);
         setMoves(m.moves);
         setCurrentPly(0);
@@ -77,51 +67,34 @@ export default function Replay() {
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [apiBase, gameId]);
 
   const startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-  const currentFen = currentPly === 0 ? startFen : moves.find((m) => m.ply === currentPly)?.fen ?? startFen;
+  const currentFen = currentPly === 0 ? startFen : (moves.find((m) => m.ply === currentPly)?.fen ?? startFen);
   const boardState = useMemo(() => fenToBoardState(currentFen), [currentFen]);
   const orientation = (game?.player_color === "black" ? "black" : "white") as "white" | "black";
   const VERTICAL = orientation === "white" ? VERTICAL_WHITE : VERTICAL_BLACK;
 
+  const currentMove = moves.find((m) => m.ply === currentPly);
+  const lastMove = currentMove
+    ? { from: currentMove.from_square, to: currentMove.to_square }
+    : undefined;
+
   const goToStart = useCallback(() => setCurrentPly(0), []);
   const goBack = useCallback(() => setCurrentPly((p) => Math.max(0, p - 1)), []);
-  const goForward = useCallback(
-    () => setCurrentPly((p) => Math.min(moves.length, p + 1)),
-    [moves.length]
-  );
+  const goForward = useCallback(() => setCurrentPly((p) => Math.min(moves.length, p + 1)), [moves.length]);
   const goToEnd = useCallback(() => setCurrentPly(moves.length), [moves.length]);
-
-  const goToPly = useCallback((ply: number) => setCurrentPly(ply), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (loading || error) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.key) {
-        case "ArrowLeft":
-          e.preventDefault();
-          goBack();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          goForward();
-          break;
-        case "Home":
-          e.preventDefault();
-          goToStart();
-          break;
-        case "End":
-          e.preventDefault();
-          goToEnd();
-          break;
+        case "ArrowLeft": e.preventDefault(); goBack(); break;
+        case "ArrowRight": e.preventDefault(); goForward(); break;
+        case "Home": e.preventDefault(); goToStart(); break;
+        case "End": e.preventDefault(); goToEnd(); break;
       }
     };
     window.addEventListener("keydown", onKey);
@@ -132,28 +105,59 @@ export default function Replay() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--mono)",
+          fontSize: 11,
+          letterSpacing: "0.14em",
+          color: "var(--ink-faint)",
+          textTransform: "uppercase",
+        }}
+      >
+        Loading…
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-        <p className="text-destructive">{error}</p>
-        <Button variant="outline" asChild>
-          <Link to="/history">← Back to history</Link>
-        </Button>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 16,
+        }}
+      >
+        <p style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--accent)" }}>{error}</p>
+        <Link to="/history" className="btn-ghost">← Back to history</Link>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row">
-      {/* Board area */}
-      <div className="flex flex-1 flex-col items-center justify-center p-4 lg:p-6 min-h-0">
-        <div className="flex flex-col items-center gap-4">
+    <div className="replay fade-in">
+      {/* Board */}
+      <div className="board-wrap">
+        <div className="player-strip">
+          <div className="who">
+            <div className="avatar">G</div>
+            <div className="meta">
+              <div className="name">Gambit</div>
+              <div className="sub">
+                Bot · {orientation === "white" ? "black" : "white"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="board-frame">
           <ChessBoard
             boardState={boardState}
             selectedSquare={null}
@@ -164,76 +168,111 @@ export default function Replay() {
             onTileClick={() => {}}
             HORIZONTAL={HORIZONTAL}
             VERTICAL={VERTICAL}
+            lastMove={lastMove}
           />
-          {/* Navigation buttons */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={goToStart} title="Start (Home)">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={goBack} title="Previous (←)">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="min-w-[4rem] text-center text-sm text-muted-foreground">
-              {currentPly === 0 ? "Start" : `${currentPly}/${moves.length}`}
-            </span>
-            <Button variant="outline" size="icon" onClick={goForward} title="Next (→)">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={goToEnd} title="End (End)">
-              <RotateCw className="h-4 w-4" />
-            </Button>
+          <div className="replay-controls">
+            <button type="button" onClick={goToStart} title="Start (Home)">⏮</button>
+            <button type="button" onClick={goBack} title="Prev (←)">‹</button>
+            <span className="pos">{currentPly === 0 ? "Start" : `${currentPly} / ${moves.length}`}</span>
+            <button type="button" onClick={goForward} title="Next (→)">›</button>
+            <button type="button" onClick={goToEnd} title="End (End)">⏭</button>
+          </div>
+        </div>
+
+        <div className="player-strip">
+          <div className="who">
+            <div className="avatar">Y</div>
+            <div className="meta">
+              <div className="name">You</div>
+              <div className="sub">Player · {orientation}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* PGN / Move list sidebar */}
-      <aside className="w-full border-t border-border/60 bg-card/40 lg:w-80 lg:border-l lg:border-t-0 lg:overflow-auto">
-        <div className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Moves</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Click a move to jump. Use ← → or Home/End.
-          </p>
-          <div className="font-mono text-sm leading-relaxed">
-            {movePairs.map((pair) => {
-              const whitePly = (pair.num - 1) * 2 + 1;
-              const blackPly = pair.num * 2;
-              return (
-                <span key={pair.num} className="inline">
-                  <span className="text-muted-foreground">{pair.num}.</span>{" "}
-                  {pair.white && (
-                    <button
-                      type="button"
-                      onClick={() => goToPly(whitePly)}
-                      className={`rounded px-0.5 py-0.5 hover:bg-primary/20 ${
-                        currentPly === whitePly ? "bg-primary/30 font-medium text-primary" : ""
-                      }`}
-                    >
-                      {pair.white}
-                    </button>
-                  )}
-                  {pair.white && " "}
-                  {pair.black && (
-                    <button
-                      type="button"
-                      onClick={() => goToPly(blackPly)}
-                      className={`rounded px-0.5 py-0.5 hover:bg-primary/20 ${
-                        currentPly === blackPly ? "bg-primary/30 font-medium text-primary" : ""
-                      }`}
-                    >
-                      {pair.black}
-                    </button>
-                  )}
-                  {" "}
-                </span>
-              );
-            })}
+      {/* Rail */}
+      <aside className="rail">
+        <section className="card">
+          <div className="card-head">
+            <span className="title">Replay</span>
+            {game?.result && (
+              <span
+                className={`result-tag ${
+                  (game.result === "1-0" && orientation === "white") ||
+                  (game.result === "0-1" && orientation === "black")
+                    ? "win"
+                    : (game.result === "1/2-1/2")
+                    ? "draw"
+                    : "loss"
+                }`}
+              >
+                {(game.result === "1-0" && orientation === "white") ||
+                (game.result === "0-1" && orientation === "black")
+                  ? "Won"
+                  : game.result === "1/2-1/2"
+                  ? "Draw"
+                  : "Lost"}
+              </span>
+            )}
           </div>
-        </div>
-        <div className="border-t border-border/60 p-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/history">← Back to history</Link>
-          </Button>
-        </div>
+          <div className="card-body">
+            <div
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 11,
+                color: "var(--ink-faint)",
+                letterSpacing: "0.06em",
+              }}
+            >
+              Use ← → to step. Esc to exit.
+            </div>
+          </div>
+        </section>
+
+        <section className="card" style={{ flex: 1 }}>
+          <div className="card-head">
+            <span className="title">Move list</span>
+            <span
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 11,
+                color: "var(--ink-faint)",
+              }}
+            >
+              {currentPly}/{moves.length}
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="move-list">
+              {movePairs.length === 0 && (
+                <div className="empty">No moves recorded.</div>
+              )}
+              {movePairs.map((pair) => (
+                <div key={pair.num} style={{ display: "contents" }}>
+                  <span className="num">{pair.num}.</span>
+                  <span
+                    className={"mv" + (pair.white && currentPly === pair.white.ply ? " current" : "")}
+                    onClick={() => pair.white && setCurrentPly(pair.white.ply)}
+                    style={{ cursor: pair.white ? "pointer" : "default" }}
+                  >
+                    {pair.white?.san ?? ""}
+                  </span>
+                  <span
+                    className={"mv" + (pair.black && currentPly === pair.black.ply ? " current" : "")}
+                    onClick={() => pair.black && setCurrentPly(pair.black.ply)}
+                    style={{ cursor: pair.black ? "pointer" : "default" }}
+                  >
+                    {pair.black?.san ?? ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <Link to="/history" className="btn-ghost" style={{ padding: "12px 4px" }}>
+          ← Back to history
+        </Link>
       </aside>
     </div>
   );

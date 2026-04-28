@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, History as HistoryIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface GameSummary {
   id: string;
   created_at: string;
-  ended_at: string | null;
   time_control_ms: number;
   result: string | null;
   termination: string | null;
@@ -18,7 +15,6 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-    year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -26,15 +22,28 @@ function formatDate(iso: string): string {
 
 function formatTimeControl(ms: number): string {
   const min = Math.round(ms / 60000);
-  if (min < 60) return `${min} min`;
-  return `${min / 60} h`;
+  if (min < 60) return `${min}+0`;
+  return `${min / 60}h`;
 }
 
-function formatResult(result: string | null): string {
-  if (!result || result === "*") return "—";
-  if (result === "1-0") return "1–0";
-  if (result === "0-1") return "0–1";
-  return result;
+function resultClass(result: string | null, playerColor: string): string {
+  if (!result || result === "*") return "draw";
+  const playerWins =
+    (result === "1-0" && playerColor === "white") ||
+    (result === "0-1" && playerColor === "black");
+  const playerLoses =
+    (result === "0-1" && playerColor === "white") ||
+    (result === "1-0" && playerColor === "black");
+  if (playerWins) return "win";
+  if (playerLoses) return "loss";
+  return "draw";
+}
+
+function resultLabel(result: string | null, playerColor: string): string {
+  const cls = resultClass(result, playerColor);
+  if (cls === "win") return "Won";
+  if (cls === "loss") return "Lost";
+  return "Draw";
 }
 
 export default function History() {
@@ -54,9 +63,7 @@ export default function History() {
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) {
-          setGames(data.games ?? []);
-        }
+        if (!cancelled) setGames(data.games ?? []);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load games");
@@ -64,89 +71,81 @@ export default function History() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [apiBase]);
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
-        <div className="mb-6 flex items-center gap-2">
-          <HistoryIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Game History</h1>
+    <div className="history fade-in">
+      <h2>Recent games.</h2>
+
+      {loading && (
+        <div
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            color: "var(--ink-faint)",
+            textTransform: "uppercase",
+            padding: "32px 0",
+          }}
+        >
+          Loading…
         </div>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Replay your past games. Click a game to step through the moves.
-        </p>
+      )}
 
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        )}
+      {error && (
+        <div
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 12,
+            color: "var(--accent)",
+            padding: "20px 0",
+          }}
+        >
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+      {!loading && !error && games.length === 0 && (
+        <div
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 12,
+            color: "var(--ink-faint)",
+            letterSpacing: "0.1em",
+            padding: "32px 0",
+          }}
+        >
+          No games yet. <Link to="/" style={{ color: "var(--accent)" }}>Play one →</Link>
+        </div>
+      )}
 
-        {!loading && !error && games.length === 0 && (
-          <div className="rounded-lg border border-border/60 bg-muted/30 px-6 py-12 text-center text-muted-foreground">
-            <p className="font-medium">No games yet</p>
-            <p className="mt-1 text-sm">Finished games with PGN will appear here.</p>
-            <Button variant="outline" size="sm" className="mt-4" asChild>
-              <Link to="/">Play a game</Link>
-            </Button>
-          </div>
-        )}
-
-        {!loading && !error && games.length > 0 && (
-          <ul className="space-y-2">
-            {games.map((g) => (
-              <li key={g.id}>
-                <Link
-                  to={`/history/${g.id}`}
-                  className="flex items-center gap-4 rounded-lg border border-border/60 bg-card/60 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-medium text-foreground">
-                        {formatTimeControl(g.time_control_ms)}
-                      </span>
-                      <span className="text-muted-foreground">·</span>
-                      <span className="text-muted-foreground">
-                        {formatResult(g.result)}
-                      </span>
-                      {g.termination && (
-                        <>
-                          <span className="text-muted-foreground">·</span>
-                          <span className="text-muted-foreground capitalize">
-                            {g.termination}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">
-                      {formatDate(g.created_at)}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {!loading && !error && games.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-border/50">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/">← Back to home</Link>
-            </Button>
-          </div>
-        )}
-      </div>
+      {!loading && !error && games.length > 0 && (
+        <div className="history-table">
+          {games.map((g, i) => {
+            const rc = resultClass(g.result, g.player_color);
+            const rl = resultLabel(g.result, g.player_color);
+            return (
+              <Link
+                key={g.id}
+                to={`/history/${g.id}`}
+                className="history-row"
+                style={{ display: "grid" }}
+              >
+                <span className="idx">№ {String(games.length - i).padStart(2, "0")}</span>
+                <div className="opp">
+                  Gambit
+                  <span className="as">as {g.player_color}</span>
+                </div>
+                <span className="when">{formatDate(g.created_at)}</span>
+                <span className="mode">{formatTimeControl(g.time_control_ms)}</span>
+                <span className={`result-tag ${rc}`}>{rl}</span>
+                <span className="chev">→</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,139 +1,113 @@
 import { useState } from "react";
-import { useHistory, Link } from "react-router-dom";
-import { Shuffle, X } from "lucide-react";
+import { useHistory } from "react-router-dom";
 
-const PLAY_MODES = [
-  { label: "Bullet", sublabel: "1 min", minutes: 1 },
-  { label: "Blitz", sublabel: "3 min", minutes: 3 },
-  { label: "Blitz", sublabel: "5 min", minutes: 5 },
-  { label: "Rapid", sublabel: "10 min", minutes: 10 },
-  { label: "Rapid", sublabel: "15 min", minutes: 15 },
-  { label: "Classical", sublabel: "30 min", minutes: 30 },
+const TIME_MODES = [
+  { id: "1+0",   cat: "Bullet",    val: "1+0",   minutes: 1,  sub: "1 min" },
+  { id: "2+1",   cat: "Bullet",    val: "2+1",   minutes: 2,  sub: "2 min · +1s" },
+  { id: "3+0",   cat: "Blitz",     val: "3+0",   minutes: 3,  sub: "3 min" },
+  { id: "3+2",   cat: "Blitz",     val: "3+2",   minutes: 3,  sub: "3 min · +2s" },
+  { id: "5+0",   cat: "Blitz",     val: "5+0",   minutes: 5,  sub: "5 min" },
+  { id: "10+0",  cat: "Rapid",     val: "10+0",  minutes: 10, sub: "10 min" },
+  { id: "15+10", cat: "Rapid",     val: "15+10", minutes: 15, sub: "15 min · +10s" },
+  { id: "30+0",  cat: "Classical", val: "30+0",  minutes: 30, sub: "30 min" },
 ];
 
 export default function Landing() {
-  const [selectedMode, setSelectedMode] = useState<{ label: string; sublabel: string; minutes: number } | null>(null);
+  const [timeId, setTimeId] = useState("5+0");
+  const [side, setSide] = useState<"w" | "rand" | "b">("w");
   const history = useHistory();
 
-  const handleColorPick = (minutes: number, color: "white" | "black") => {
-    history.push(`/play/new?minutes=${minutes}&color=${color}`);
-  };
-
-  const handleRandomPick = (minutes: number) => {
-    const color = Math.random() < 0.5 ? "white" : "black";
-    history.push(`/play/new?minutes=${minutes}&color=${color}`);
-  };
+  function start() {
+    const mode = TIME_MODES.find((m) => m.id === timeId)!;
+    let color: "white" | "black";
+    if (side === "rand") {
+      color = Math.random() < 0.5 ? "white" : "black";
+    } else {
+      color = side === "w" ? "white" : "black";
+    }
+    history.push(`/play/new?minutes=${mode.minutes}&color=${color}`);
+  }
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.7_0.15_195/0.12),transparent_50%)]" />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_40%_at_80%_50%,oklch(0.5_0.1_195/0.08),transparent_50%)]" />
-      <div
-        className="absolute inset-0 -z-10 opacity-[0.03]"
-        style={{
-          backgroundImage: "linear-gradient(oklch(1_0_0/0.5) 1px, transparent 1px), linear-gradient(90deg, oklch(1_0_0/0.5) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
+    <div className="lobby fade-in">
+      <div className="lobby-hero">
+        <h1>My engine.<br /><em>Your move.</em></h1>
+        <p className="lede">
+          Pick a tempo, choose a colour, then sit across the board from Gambit —
+          a stubborn, slightly distracted opponent who plays at their own pace.
+        </p>
+      </div>
 
-      <section className="relative mx-auto max-w-xl px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 min-h-full flex flex-col sm:justify-center">
-        <div className="text-center mb-8 sm:mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 mb-4 rounded-2xl bg-primary/10 border border-primary/20">
-            <span className="text-4xl sm:text-5xl" aria-hidden={true}>♔</span>
+      <div className="lobby-grid">
+        <div>
+          <div className="section-label">Time control</div>
+          <div className="time-grid">
+            {TIME_MODES.map((m) => (
+              <button
+                key={m.id}
+                className={"time-cell" + (timeId === m.id ? " active" : "")}
+                onClick={() => setTimeId(m.id)}
+                type="button"
+              >
+                <span className="cat">{m.cat}</span>
+                <span className="val">{m.val}</span>
+                <span className="sub">{m.sub}</span>
+              </button>
+            ))}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Gambitron
-          </h1>
-          <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-sm mx-auto">
-            Chess AI · minimax & αβ pruning
-          </p>
-        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {PLAY_MODES.map((mode) => (
-            <button
-              key={mode.minutes}
-              type="button"
-              onClick={() => setSelectedMode(mode)}
-              className="rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm hover:border-primary/50 hover:bg-primary/10 transition-all duration-200 py-6 px-4 text-center focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2"
-            >
-              <div className="font-semibold text-foreground">{mode.label}</div>
-              <div className="mt-0.5 text-sm text-muted-foreground">{mode.sublabel}</div>
+          <div style={{ marginTop: 36 }}>
+            <div className="section-label">Play as</div>
+            <div className="side-row">
+              <button
+                className={"side-cell" + (side === "w" ? " active" : "")}
+                onClick={() => setSide("w")}
+                type="button"
+              >
+                <div className="swatch white">♔</div>
+                <span className="label">White</span>
+              </button>
+              <button
+                className={"side-cell" + (side === "rand" ? " active" : "")}
+                onClick={() => setSide("rand")}
+                type="button"
+              >
+                <div className="swatch random">?</div>
+                <span className="label">Random</span>
+              </button>
+              <button
+                className={"side-cell" + (side === "b" ? " active" : "")}
+                onClick={() => setSide("b")}
+                type="button"
+              >
+                <div className="swatch black">♚</div>
+                <span className="label">Black</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="cta-row">
+            <button className="btn-primary" onClick={start} type="button">
+              Begin Game <span className="arrow">→</span>
             </button>
-          ))}
-        </div>
-
-        <div className="mt-10 pt-6 border-t border-border/50">
-          <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-sm text-muted-foreground">
-            <Link to="/history" className="hover:text-foreground transition-colors">
-              History
-            </Link>
-            <Link to="/about" className="hover:text-foreground transition-colors">
-              About
-            </Link>
           </div>
         </div>
-      </section>
 
-      {selectedMode !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="color-modal-title"
-        >
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setSelectedMode(null)}
-            aria-hidden
-          />
-          <div
-            className="relative w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl p-8 animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-start mb-6">
-              <p id="color-modal-title" className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                {selectedMode.label} · {selectedMode.sublabel}
-              </p>
-              <button
-                type="button"
-                onClick={() => setSelectedMode(null)}
-                className="p-1.5 -mr-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-6">Play as</h2>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => handleColorPick(selectedMode.minutes, "white")}
-                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-border bg-white text-[#333] hover:border-primary/50 hover:bg-white/95 transition-all font-medium shadow-sm"
-              >
-                <img src="/pieces/k-white.svg" alt="" className="w-6 h-6" />
-                White
-              </button>
-              <button
-                type="button"
-                onClick={() => handleColorPick(selectedMode.minutes, "black")}
-                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-border bg-[#1a1a1a] text-white hover:border-primary/50 hover:bg-[#2a2a2a] transition-all font-medium shadow-sm"
-              >
-                <img src="/pieces/k-black.svg" alt="" className="w-6 h-6" />
-                Black
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRandomPick(selectedMode.minutes)}
-                className="flex items-center justify-center gap-2 py-3 px-5 rounded-xl border-2 border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-all font-medium"
-              >
-                <Shuffle className="w-5 h-5" />
-                Random
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <aside className="opponent grain">
+          <svg className="opp-portrait" viewBox="0 0 45 45" fill="currentColor">
+            <path d="M22.5 11.63V6M20 8h5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            <path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" />
+            <path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" />
+          </svg>
+          <div className="section-label" style={{ margin: 0 }}>Opponent</div>
+          <div className="opp-name">Gambit</div>
+          <div className="opp-rating">Rating · 1420 · House Bot</div>
+          <p className="opp-bio">
+            Plays an unfussy game. Knows what to do with a knight, gets bored in long endgames,
+            and will trade pieces if you let them.
+          </p>
+        </aside>
+      </div>
     </div>
   );
 }
