@@ -86,8 +86,10 @@ export function useGame(options?: UseGameOptions) {
   const pendingStartRef = useRef<{ minutes: number; color: PlayerColor } | null>(null);
   const playerColorRef = useRef<PlayerColor>("white");
   const onGameCreatedRef = useRef(onGameCreated);
+  const aiThinkingRef = useRef(false);
   onGameCreatedRef.current = onGameCreated;
   playerColorRef.current = playerColor;
+  aiThinkingRef.current = aiThinking;
 
   const apiBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
 
@@ -377,10 +379,19 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as GameStateMessage;
             if (m.gameId !== currentGameIdRef.current) return;
             playerColorRef.current = m.playerColor;
-            setPlayerTimeMs(m.playerTimeMs);
-            setAiTimeMs(m.aiTimeMs);
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            if (aiThinkingRef.current) {
+              setAiTimeMs(m.aiTimeMs);
+            } else {
+              const currentTurn = chess.turn();
+              const pt = m.playerColor === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
+            }
             if (m.fen) {
               try {
                 chess.load(m.fen);
@@ -430,13 +441,17 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === currentGameIdRef.current) {
-              const currentTurn = chess.turn();
-              const pc = playerColorRef.current;
-              const pt = pc === "white" ? "w" : "b";
-              if (currentTurn === pt) {
-                setPlayerTimeMs(m.playerTimeMs);
-              } else {
+              if (aiThinkingRef.current) {
                 setAiTimeMs(m.aiTimeMs);
+              } else {
+                const currentTurn = chess.turn();
+                const pc = playerColorRef.current;
+                const pt = pc === "white" ? "w" : "b";
+                if (currentTurn === pt) {
+                  setPlayerTimeMs(m.playerTimeMs);
+                } else {
+                  setAiTimeMs(m.aiTimeMs);
+                }
               }
             }
           } else if (msg.type === "error") {
@@ -508,10 +523,19 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as GameStateMessage;
             if (m.gameId !== gid) return;
             playerColorRef.current = m.playerColor;
-            setPlayerTimeMs(m.playerTimeMs);
-            setAiTimeMs(m.aiTimeMs);
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            if (aiThinkingRef.current) {
+              setAiTimeMs(m.aiTimeMs);
+            } else {
+              const currentTurn = chess.turn();
+              const pt = m.playerColor === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
+            }
             if (m.fen) {
               try {
                 chess.load(m.fen);
@@ -527,13 +551,17 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === gid) {
-              const currentTurn = chess.turn();
-              const pc = playerColorRef.current;
-              const pt = pc === "white" ? "w" : "b";
-              if (currentTurn === pt) {
-                setPlayerTimeMs(m.playerTimeMs);
-              } else {
+              if (aiThinkingRef.current) {
                 setAiTimeMs(m.aiTimeMs);
+              } else {
+                const currentTurn = chess.turn();
+                const pc = playerColorRef.current;
+                const pt = pc === "white" ? "w" : "b";
+                if (currentTurn === pt) {
+                  setPlayerTimeMs(m.playerTimeMs);
+                } else {
+                  setAiTimeMs(m.aiTimeMs);
+                }
               }
             }
           } else if (msg.type === "ai_move") {
