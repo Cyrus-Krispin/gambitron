@@ -139,7 +139,10 @@ async def tick_all(broadcast_fn) -> None:
         if pt <= 0 or at <= 0:
             t["game_ended"] = True
             player_color = t["player_color"]
-            result = "0-1" if pt <= 0 else "1-0"
+            if pt <= 0:
+                result = "0-1" if player_color == "white" else "1-0"
+            else:
+                result = "1-0" if player_color == "white" else "0-1"
             termination = "timeout"
             await moves_db.finalize_game_to_pgn(game_id, result, termination, player_color)
             await broadcast_fn(
