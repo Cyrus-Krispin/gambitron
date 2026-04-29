@@ -68,8 +68,8 @@ export default function Play() {
   const playerColor = game.playerColor;
   const botColor = playerColor === "white" ? "black" : "white";
 
-  const botTimeMs = playerColor === "white" ? game.aiTimeMs : game.playerTimeMs;
-  const myTimeMs = playerColor === "white" ? game.playerTimeMs : game.aiTimeMs;
+  const botTimeMs = game.aiTimeMs;
+  const myTimeMs = game.playerTimeMs;
   const isBotActive = !game.isPlayersTurn && !game.gameEnded;
   const isMyActive = game.isPlayersTurn && !game.gameEnded;
   const myLow = myTimeMs < 30000;
