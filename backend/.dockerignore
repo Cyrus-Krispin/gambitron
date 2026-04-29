@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+.env
+.env.*
+.git
+.gitignore
+*.md
+test_*.py
+migrations/
+data/
