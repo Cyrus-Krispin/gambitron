@@ -85,8 +85,7 @@ jobs:
             docker pull "${LATEST_IMAGE}"
 
             # Swap container atomically: stop old, start new
-            docker stop gambitron-backend 2>/dev/null || true
-            docker rm   gambitron-backend 2>/dev/null || true
+            docker rm -f gambitron-backend 2>/dev/null || true
 
             docker run -d \
               --name gambitron-backend \
@@ -104,8 +103,7 @@ jobs:
               fi
               if [ "$i" -eq 10 ]; then
                 echo "ERROR: Health check failed after 10 attempts. Rolling back..."
-                docker stop gambitron-backend 2>/dev/null || true
-                docker rm   gambitron-backend 2>/dev/null || true
+                docker rm -f gambitron-backend 2>/dev/null || true
                 ROLLBACK_IMAGE=$(cat /opt/gambitron/previous-image.txt 2>/dev/null || true)
                 if [ -n "${ROLLBACK_IMAGE}" ]; then
                   docker run -d \
