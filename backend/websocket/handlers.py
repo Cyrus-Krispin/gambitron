@@ -82,11 +82,12 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
         if t and timers_module.is_player_turn(fen, player_color) and pt <= 0:
             timers_module.mark_ended(game_id)
             timers_module.remove_game(game_id)
-            await moves_db.finalize_game_to_pgn(game_id, "0-1", "timeout", player_color)
+            timeout_result = "0-1" if player_color == "white" else "1-0"
+            await moves_db.finalize_game_to_pgn(game_id, timeout_result, "timeout", player_color)
             return {
                 "type": "game_ended",
                 "gameId": str(game_id),
-                "result": "0-1",
+                "result": timeout_result,
                 "termination": "timeout",
             }
 
@@ -224,11 +225,12 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
         if t and not timers_module.is_player_turn(fen, player_color) and at <= 0:
             timers_module.mark_ended(game_id)
             timers_module.remove_game(game_id)
-            await moves_db.finalize_game_to_pgn(game_id, "1-0", "timeout", player_color)
+            timeout_result = "1-0" if player_color == "white" else "0-1"
+            await moves_db.finalize_game_to_pgn(game_id, timeout_result, "timeout", player_color)
             return {
                 "type": "game_ended",
                 "gameId": str(game_id),
-                "result": "1-0",
+                "result": timeout_result,
                 "termination": "timeout",
             }
 
