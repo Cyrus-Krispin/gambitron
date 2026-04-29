@@ -10,7 +10,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner | lower }}/gambitron-backend
 
 jobs:
   build-and-push:
@@ -20,8 +19,13 @@ jobs:
       packages: write
     outputs:
       sha-tag: ${{ steps.sha-tag.outputs.tag }}
+      image-name: ${{ steps.image-name.outputs.name }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute image name (lowercase)
+        id: image-name
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/gambitron-backend" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -40,8 +44,8 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ env.IMAGE_NAME }}:latest
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.sha-tag.outputs.tag }}
+            ghcr.io/${{ steps.image-name.outputs.name }}:latest
+            ghcr.io/${{ steps.image-name.outputs.name }}:${{ steps.sha-tag.outputs.tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -58,7 +62,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stderr: true
-          envs: IMAGE_NAME,SHA_TAG,GHCR_TOKEN,GITHUB_ACTOR
+          envs: IMAGE_NAME,SHA_TAG,GITHUB_TOKEN,GITHUB_ACTOR
           script: |
             set -e
 
@@ -66,8 +70,8 @@ jobs:
             SHA_IMAGE="${IMAGE}:${SHA_TAG}"
             LATEST_IMAGE="${IMAGE}:latest"
 
-            # Log in to GHCR on the EC2 host
-            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+            # Log in to GHCR on the EC2 host using GITHUB_TOKEN
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
 
             # Save the currently running image tag for rollback before pulling new image
             CURRENT_IMAGE=$(docker inspect --format='{{.Config.Image}}' gambitron-backend 2>/dev/null || true)
@@ -119,7 +123,7 @@ jobs:
 
             echo "Deployed ${SHA_IMAGE} successfully."
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_NAME: ${{ needs.build-and-push.outputs.image-name }}
           SHA_TAG: ${{ needs.build-and-push.outputs.sha-tag }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
