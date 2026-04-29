@@ -34,9 +34,7 @@ export function ChessBoard({
   const flipped = orientation === "black";
   const fileLabels = flipped ? [...HORIZONTAL].reverse() : HORIZONTAL;
 
-  const rows = flipped
-    ? [...VERTICAL].reverse()
-    : VERTICAL;
+  const rows = VERTICAL;
 
   return (
     <div
