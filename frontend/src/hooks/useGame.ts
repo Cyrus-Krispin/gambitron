@@ -430,8 +430,14 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === currentGameIdRef.current) {
-              setPlayerTimeMs(m.playerTimeMs);
-              setAiTimeMs(m.aiTimeMs);
+              const currentTurn = chess.turn();
+              const pc = playerColorRef.current;
+              const pt = pc === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
             }
           } else if (msg.type === "error") {
             setAiThinking(false);
@@ -521,8 +527,14 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === gid) {
-              setPlayerTimeMs(m.playerTimeMs);
-              setAiTimeMs(m.aiTimeMs);
+              const currentTurn = chess.turn();
+              const pc = playerColorRef.current;
+              const pt = pc === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
             }
           } else if (msg.type === "ai_move") {
             const m = msg as AIMoveMessage;
