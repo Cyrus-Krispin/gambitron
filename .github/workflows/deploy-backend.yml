@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/gambitron-backend
+  IMAGE_NAME: ${{ github.repository_owner | lower }}/gambitron-backend
 
 jobs:
   build-and-push:
