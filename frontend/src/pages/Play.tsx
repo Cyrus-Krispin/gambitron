@@ -93,7 +93,7 @@ export default function Play() {
           <div className="who">
             <div className="avatar">G</div>
             <div className="meta">
-              <div className="name">Gambit</div>
+              <div className="name">Gambitron</div>
               <div className="sub">Bot · 1420 · {botColor}</div>
             </div>
           </div>

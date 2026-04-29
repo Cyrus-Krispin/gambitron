@@ -63,9 +63,9 @@ export function Dialogs({
   const headline = playerWins ? "Victory" : playerLoses ? "Defeat" : "Drawn";
 
   const reasonText = (() => {
-    if (playerWins && endgameReason === "checkmate") return "Checkmate · you outplayed Gambit";
-    if (playerWins && endgameReason === "timeout") return "Gambit ran out of time";
-    if (playerLoses && endgameReason === "checkmate") return "Checkmate · Gambit got you";
+    if (playerWins && endgameReason === "checkmate") return "Checkmate · you outplayed Gambitron";
+    if (playerWins && endgameReason === "timeout") return "Gambitron ran out of time";
+    if (playerLoses && endgameReason === "checkmate") return "Checkmate · Gambitron got you";
     if (playerLoses && endgameReason === "timeout") return "You ran out of time";
     if (endgameResult === "1/2-1/2") return "The game ends in a draw";
     return endgameReason || "Game over";

@@ -33,7 +33,7 @@ export default function Landing() {
       <div className="lobby-hero">
         <h1>My engine.<br /><em>Your move.</em></h1>
         <p className="lede">
-          Pick a tempo, choose a colour, then sit across the board from Gambit —
+          Pick a tempo, choose a colour, then sit across the board from Gambitron —
           a stubborn, slightly distracted opponent who plays at their own pace.
         </p>
       </div>
@@ -100,7 +100,7 @@ export default function Landing() {
             <path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" />
           </svg>
           <div className="section-label" style={{ margin: 0 }}>Opponent</div>
-          <div className="opp-name">Gambit</div>
+          <div className="opp-name">Gambitron</div>
           <div className="opp-rating">Rating · 1420 · House Bot</div>
           <p className="opp-bio">
             Plays an unfussy game. Knows what to do with a knight, gets bored in long endgames,

@@ -149,7 +149,7 @@ export default function Replay() {
           <div className="who">
             <div className="avatar">G</div>
             <div className="meta">
-              <div className="name">Gambit</div>
+              <div className="name">Gambitron</div>
               <div className="sub">
                 Bot · {orientation === "white" ? "black" : "white"}
               </div>

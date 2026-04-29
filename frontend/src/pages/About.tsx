@@ -34,7 +34,7 @@ const STEPS = [
   {
     num: "07",
     title: "Minimax engine",
-    body: "Gambit uses a minimax search with alpha-beta pruning, piece-square tables, and a quiescence search for tactical sharpness. It runs on a FastAPI server via WebSocket.",
+    body: "Gambitron uses a minimax search with alpha-beta pruning, piece-square tables, and a quiescence search for tactical sharpness. It runs on a FastAPI server via WebSocket.",
   },
   {
     num: "08",

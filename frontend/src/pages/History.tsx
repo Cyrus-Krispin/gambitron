@@ -134,7 +134,7 @@ export default function History() {
               >
                 <span className="idx">№ {String(games.length - i).padStart(2, "0")}</span>
                 <div className="opp">
-                  Gambit
+                  Gambitron
                   <span className="as">as {g.player_color}</span>
                 </div>
                 <span className="when">{formatDate(g.created_at)}</span>
