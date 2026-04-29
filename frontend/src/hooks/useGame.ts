@@ -379,10 +379,19 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as GameStateMessage;
             if (m.gameId !== currentGameIdRef.current) return;
             playerColorRef.current = m.playerColor;
-            setPlayerTimeMs(m.playerTimeMs);
-            setAiTimeMs(m.aiTimeMs);
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            if (aiThinkingRef.current) {
+              setAiTimeMs(m.aiTimeMs);
+            } else {
+              const currentTurn = chess.turn();
+              const pt = m.playerColor === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
+            }
             if (m.fen) {
               try {
                 chess.load(m.fen);
@@ -514,10 +523,19 @@ export function useGame(options?: UseGameOptions) {
             const m = msg as GameStateMessage;
             if (m.gameId !== gid) return;
             playerColorRef.current = m.playerColor;
-            setPlayerTimeMs(m.playerTimeMs);
-            setAiTimeMs(m.aiTimeMs);
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            if (aiThinkingRef.current) {
+              setAiTimeMs(m.aiTimeMs);
+            } else {
+              const currentTurn = chess.turn();
+              const pt = m.playerColor === "white" ? "w" : "b";
+              if (currentTurn === pt) {
+                setPlayerTimeMs(m.playerTimeMs);
+              } else {
+                setAiTimeMs(m.aiTimeMs);
+              }
+            }
             if (m.fen) {
               try {
                 chess.load(m.fen);
