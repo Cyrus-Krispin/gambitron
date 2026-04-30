@@ -332,6 +332,90 @@ export function useGame(options?: UseGameOptions) {
     ]
   );
 
+  const handleDragStart = useCallback(
+    (squareName: string) => {
+      if (aiThinking || chess.isGameOver() || gameEnded) return;
+      if (!isAdmin && !gameStarted) return;
+      if (chess.turn() !== playerTurn) return;
+
+      const moves = chess.moves({ square: squareName as Square, verbose: true }).map((m: { to: string }) => m.to);
+      if (moves.length > 0) {
+        setSelectedSquare(squareName);
+        setValidMoves(moves);
+      }
+    },
+    [chess, aiThinking, gameEnded, gameStarted, isAdmin, playerTurn]
+  );
+
+  const handleDropPiece = useCallback(
+    (fromSquare: string, toSquare: string) => {
+      if (aiThinking || chess.isGameOver() || gameEnded) {
+        setSelectedSquare(null);
+        setValidMoves([]);
+        return;
+      }
+      if (!isAdmin && !gameStarted) return;
+      if (chess.turn() !== playerTurn) return;
+
+      const verboseMoves = chess.moves({ square: fromSquare as Square, verbose: true }) as {
+        to: string;
+        piece: string;
+        from: string;
+        san: string;
+      }[];
+      const targetMove = verboseMoves.find((m) => m.to === toSquare);
+
+      if (!targetMove) {
+        setSelectedSquare(null);
+        setValidMoves([]);
+        return;
+      }
+
+      if (targetMove.piece === "p" && isPromotionSquare(toSquare)) {
+        setPendingPromotionFrom(fromSquare);
+        setPendingPromotionTo(toSquare);
+        setPromotionOpen(true);
+        return;
+      }
+
+      const move = chess.move({ from: fromSquare as Square, to: toSquare as Square });
+      setSelectedSquare(null);
+      setValidMoves([]);
+      if (!move) return;
+      const from = (move as { from: string }).from;
+      const to = (move as { to: string }).to;
+      const captured = (move as { captured?: string }).captured;
+      const san = (move as { san: string }).san;
+      setBoardState(chess.board());
+      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
+      if (!playerHasMoved) setPlayerHasMoved(true);
+      playMoveSound();
+      if (chess.isGameOver()) {
+        openEndgame(computeResult(chess), "checkmate");
+        return;
+      }
+      const fen = chess.fen();
+      sendPlayerMove(fen, san, from, to, captured);
+    },
+    [
+      chess,
+      aiThinking,
+      gameEnded,
+      gameStarted,
+      isAdmin,
+      playerHasMoved,
+      openEndgame,
+      sendPlayerMove,
+      playerTurn,
+      isPromotionSquare,
+    ]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setSelectedSquare(null);
+    setValidMoves([]);
+  }, []);
+
   const startNewGameViaWebSocket = useCallback(
     (minutes: number, color: PlayerColor) => {
       setPlayerColor(color);
@@ -825,6 +909,9 @@ export function useGame(options?: UseGameOptions) {
     handleRetry,
     hasRetry: !!lastFenForRetry,
     onTileClick: handleTileClick,
+    onDragStart: handleDragStart,
+    onDropPiece: handleDropPiece,
+    onDragEnd: handleDragEnd,
     playerTimeMs,
     aiTimeMs,
     initialTimeMs,
