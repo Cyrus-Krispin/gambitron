@@ -169,6 +169,11 @@ export default function Replay() {
             HORIZONTAL={HORIZONTAL}
             VERTICAL={VERTICAL}
             lastMove={lastMove}
+            playerColor={orientation}
+            isPlayersTurn={false}
+            onDragStart={() => {}}
+            onDropPiece={() => {}}
+            onDragEnd={() => {}}
           />
           <div className="replay-controls">
             <button type="button" onClick={goToStart} title="Start (Home)">⏮</button>

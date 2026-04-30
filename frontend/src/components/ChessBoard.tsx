@@ -17,6 +17,11 @@ interface ChessBoardProps {
   HORIZONTAL: string[];
   VERTICAL: string[];
   lastMove?: { from?: string; to?: string } | null;
+  playerColor: PlayerColor;
+  isPlayersTurn: boolean;
+  onDragStart: (square: string) => void;
+  onDropPiece: (from: string, to: string) => void;
+  onDragEnd: () => void;
 }
 
 export function ChessBoard({
@@ -30,6 +35,11 @@ export function ChessBoard({
   HORIZONTAL,
   VERTICAL,
   lastMove,
+  playerColor,
+  isPlayersTurn,
+  onDragStart,
+  onDropPiece,
+  onDragEnd,
 }: ChessBoardProps) {
   const flipped = orientation === "black";
   const fileLabels = flipped ? [...HORIZONTAL].reverse() : HORIZONTAL;
@@ -71,11 +81,28 @@ export function ChessBoard({
             .filter(Boolean)
             .join(" ");
 
+          const pieceIsDraggable =
+            piece &&
+            isPlayersTurn &&
+            !gameEnded &&
+            ((playerColor === "white" && piece.color === "w") ||
+              (playerColor === "black" && piece.color === "b"));
+
           return (
             <div
               key={squareName}
               className={cls}
               onClick={() => !gameEnded && onTileClick(squareName)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (selectedSquare && !gameEnded && onDropPiece) {
+                  onDropPiece(selectedSquare, squareName);
+                }
+              }}
               role="gridcell"
               aria-label={squareName}
             >
@@ -85,6 +112,10 @@ export function ChessBoard({
                 <ChessPiece
                   piece={piece.type}
                   color={piece.color === "w" ? "white" : "black"}
+                  squareName={squareName}
+                  draggable={!!pieceIsDraggable}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
                 />
               )}
               {isLegal && <span className="move-dot" />}

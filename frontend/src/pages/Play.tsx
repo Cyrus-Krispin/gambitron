@@ -121,6 +121,11 @@ export default function Play() {
             HORIZONTAL={game.HORIZONTAL}
             VERTICAL={game.VERTICAL}
             lastMove={game.lastMove}
+            playerColor={playerColor}
+            isPlayersTurn={game.isPlayersTurn}
+            onDragStart={game.onDragStart}
+            onDropPiece={game.onDropPiece}
+            onDragEnd={game.onDragEnd}
           />
 
           {/* Color picker overlay when startOpen */}

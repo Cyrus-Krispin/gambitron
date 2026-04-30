@@ -552,6 +552,13 @@ body.hide-coords .square .coord { display: none; }
 }
 .piece img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .square.selected .piece { transform: translateY(-2px) scale(1.04); }
+.piece.draggable {
+  pointer-events: auto;
+  cursor: grab;
+}
+.piece.draggable:active {
+  cursor: grabbing;
+}
 
 /* ---------- Right rail ---------- */
 .rail {
