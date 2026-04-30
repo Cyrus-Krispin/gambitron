@@ -99,8 +99,9 @@ export function ChessBoard({
               }}
               onDrop={(e) => {
                 e.preventDefault();
-                if (selectedSquare && !gameEnded && onDropPiece) {
-                  onDropPiece(selectedSquare, squareName);
+                const fromSquare = e.dataTransfer.getData("text/plain");
+                if (fromSquare && !gameEnded) {
+                  onDropPiece(fromSquare, squareName);
                 }
               }}
               role="gridcell"

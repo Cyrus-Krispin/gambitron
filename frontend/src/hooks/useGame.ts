@@ -399,7 +399,6 @@ export function useGame(options?: UseGameOptions) {
     },
     [
       chess,
-      selectedSquare,
       aiThinking,
       gameEnded,
       gameStarted,
