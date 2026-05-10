@@ -5,6 +5,7 @@ from chess_engine import (
     _captured_piece_symbol,
     evaluate_board_state,
     get_best_move,
+    middlegame_piece_square_tables,
     select_best_move,
 )
 
@@ -85,3 +86,12 @@ def test_engine_handles_d4_nf6_nc3_position():
 def test_start_position_evaluates_near_equal():
     """The starting position should not contain a baked-in color bias."""
     assert abs(evaluate_board_state(chess.Board())) <= 10
+
+
+def test_middlegame_king_table_rewards_safe_home_squares():
+    """Regression for issue #14: middlegame king PST must not reward exposure."""
+    king_table = middlegame_piece_square_tables[chess.KING]
+
+    assert king_table[chess.G1] > king_table[chess.E4]
+    assert king_table[chess.G1] > king_table[chess.E8]
+    assert king_table[chess.C1] > king_table[chess.E4]
