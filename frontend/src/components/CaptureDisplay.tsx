@@ -22,7 +22,7 @@ export function CaptureDisplay({ pieces, pieceColor, materialDiff = 0 }: Capture
         <span key={key} className="cap-piece">
           <img
             src={`/pieces/${piece}-${pieceColor}.svg`}
-            alt={piece}
+            alt={`captured ${pieceColor} ${piece}`}
             draggable={false}
           />
         </span>
