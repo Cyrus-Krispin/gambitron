@@ -4,6 +4,7 @@ import chess
 from chess_engine import (
     _captured_piece_symbol,
     _opening_development_score,
+    _opening_move_bias,
     evaluate_board_state,
     get_best_move,
     middlegame_piece_square_tables,
@@ -127,3 +128,36 @@ def test_opening_development_fades_when_material_is_imbalanced():
     )
 
     assert _opening_development_score(imbalanced) == 0
+
+
+def test_opening_move_bias_prefers_center_pawn_before_first_minor():
+    """Balanced openings should prefer claiming the center before a first knight move."""
+    board = chess.Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+
+    assert _opening_move_bias(board, chess.Move.from_uci("e7e5")) > 0
+    assert _opening_move_bias(board, chess.Move.from_uci("g8f6")) < 0
+
+    start = chess.Board()
+    assert _opening_move_bias(start, chess.Move.from_uci("d2d4")) > 0
+    assert _opening_move_bias(start, chess.Move.from_uci("c2c4")) == 0
+
+
+def test_engine_answers_e4_with_opening_pawn_move():
+    """Regression for the engine choosing a knight before any black pawn development."""
+    board = chess.Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+    result = get_best_move(
+        board.fen(),
+        depth=5,
+        time_limit=0.5,
+    )
+
+    move = chess.Move.from_uci(f"{result['from_square']}{result['to_square']}")
+    assert board.piece_at(move.from_square).piece_type == chess.PAWN
+
+
+def test_opening_move_bias_fades_when_material_is_imbalanced():
+    """Opening pawn preferences must not override material/tactics."""
+    board = chess.Board("rnb1kbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+
+    assert _opening_move_bias(board, chess.Move.from_uci("e7e5")) == 0
+    assert _opening_move_bias(board, chess.Move.from_uci("g8f6")) == 0

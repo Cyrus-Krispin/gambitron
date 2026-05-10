@@ -216,6 +216,9 @@ CASTLED_KING_BONUS = 14
 CENTER_PAWN_OPENING_BONUS = 4
 OPENING_DEVELOPMENT_FULL_WEIGHT_MARGIN = PAWN_VALUE
 OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN = BISHOP_VALUE
+OPENING_PRIMARY_PAWN_MOVE_BONUS = 55
+OPENING_SUPPORT_PAWN_MOVE_BONUS = 24
+EARLY_MINOR_BEFORE_PAWN_PENALTY = 22
 MINOR_STARTING_SQUARES = {
     chess.WHITE: (
         (chess.B1, chess.KNIGHT),
@@ -245,6 +248,14 @@ CASTLED_KING_SQUARES = {
 CENTER_PAWN_TARGETS = {
     chess.WHITE: (chess.D4, chess.E4),
     chess.BLACK: (chess.D5, chess.E5),
+}
+PRIMARY_PAWN_MOVE_TARGETS = {
+    chess.WHITE: (chess.D4, chess.E4),
+    chess.BLACK: (chess.D5, chess.E5),
+}
+SUPPORT_PAWN_MOVE_TARGETS = {
+    chess.WHITE: (chess.C4, chess.C3, chess.D3, chess.E3),
+    chess.BLACK: (chess.C5, chess.C6, chess.D6, chess.E6),
 }
 KINGSIDE_CASTLING_PATHS = {
     chess.WHITE: (chess.F1, chess.G1),
@@ -321,6 +332,53 @@ def _opening_material_weight(board_state: chess.Board) -> float:
 
     fade_span = OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN - OPENING_DEVELOPMENT_FULL_WEIGHT_MARGIN
     return (OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN - imbalance) / fade_span
+
+
+def _has_opening_pawn_foothold(board_state: chess.Board, color: chess.Color) -> bool:
+    for square in PRIMARY_PAWN_MOVE_TARGETS[color] + SUPPORT_PAWN_MOVE_TARGETS[color]:
+        piece = board_state.piece_at(square)
+        if piece and piece.color == color and piece.piece_type == chess.PAWN:
+            return True
+    return False
+
+
+def _has_primary_center_pawn(board_state: chess.Board, color: chess.Color) -> bool:
+    for square in PRIMARY_PAWN_MOVE_TARGETS[color]:
+        piece = board_state.piece_at(square)
+        if piece and piece.color == color and piece.piece_type == chess.PAWN:
+            return True
+    return False
+
+
+def _opening_move_bias(board_state: chess.Board, move: chess.Move) -> int:
+    if board_state.is_capture(move) or move.promotion or board_state.gives_check(move):
+        return 0
+
+    weight = _opening_weight(board_state) * _opening_material_weight(board_state)
+    if weight <= 0:
+        return 0
+
+    moving_piece = board_state.piece_at(move.from_square)
+    if not moving_piece:
+        return 0
+
+    bias = 0
+    if moving_piece.piece_type == chess.PAWN:
+        if move.to_square in PRIMARY_PAWN_MOVE_TARGETS[moving_piece.color]:
+            bias += OPENING_PRIMARY_PAWN_MOVE_BONUS
+        elif (
+            move.to_square in SUPPORT_PAWN_MOVE_TARGETS[moving_piece.color]
+            and _has_primary_center_pawn(board_state, not moving_piece.color)
+        ):
+            bias += OPENING_SUPPORT_PAWN_MOVE_BONUS
+    elif (
+        moving_piece.piece_type in (chess.KNIGHT, chess.BISHOP)
+        and board_state.fullmove_number <= 3
+        and not _has_opening_pawn_foothold(board_state, moving_piece.color)
+    ):
+        bias -= EARLY_MINOR_BEFORE_PAWN_PENALTY
+
+    return int(bias * weight)
 
 
 def _minor_development_counts(board_state: chess.Board, color: chess.Color) -> tuple[int, int]:
@@ -752,6 +810,8 @@ def _move_order_score(
     if moving_piece and moving_piece.piece_type == chess.KING and abs(move.to_square - move.from_square) == 2:
         score += 15_000
 
+    score += _opening_move_bias(board_state, move) * 1_000
+
     return score
 
 
@@ -993,6 +1053,7 @@ def _search_root(
             score = -_negamax(board_state, depth - 1, -beta, -alpha, 1, ctx)
         finally:
             board_state.pop()
+        score += _opening_move_bias(board_state, move)
 
         if score > best_score:
             best_score = score
