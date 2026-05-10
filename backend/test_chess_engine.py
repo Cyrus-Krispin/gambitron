@@ -3,6 +3,7 @@ import chess
 
 from chess_engine import (
     _captured_piece_symbol,
+    _opening_development_score,
     evaluate_board_state,
     get_best_move,
     middlegame_piece_square_tables,
@@ -95,3 +96,25 @@ def test_middlegame_king_table_rewards_safe_home_squares():
     assert king_table[chess.G1] > king_table[chess.E4]
     assert king_table[chess.G1] > king_table[chess.E8]
     assert king_table[chess.C1] > king_table[chess.E4]
+
+
+def test_opening_development_rewards_minor_piece_development():
+    """Opening eval should prefer developing more pieces over leaving them home."""
+    start = chess.Board()
+    developed = chess.Board(
+        "rnbqkbnr/pppppppp/8/8/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 3"
+    )
+
+    assert _opening_development_score(developed) > _opening_development_score(start) + 40
+
+
+def test_opening_development_penalizes_early_rim_knight_attack():
+    """A second knight move to the rim should need a real tactical reason early."""
+    developed_knight = chess.Board(
+        "rnbqkb1r/pppppppp/5n2/8/3P1B2/8/PPP1PPPP/RN1QKBNR b KQkq - 2 2"
+    )
+    rim_knight = chess.Board(
+        "rnbqkb1r/pppppppp/8/7n/3P1B2/8/PPP1PPPP/RN1QKBNR b KQkq - 2 2"
+    )
+
+    assert _opening_development_score(rim_knight) > _opening_development_score(developed_knight)

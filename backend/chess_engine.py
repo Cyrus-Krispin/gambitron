@@ -206,6 +206,52 @@ MOBILITY_WEIGHTS = {
     chess.ROOK: 2,
     chess.QUEEN: 1,
 }
+OPENING_FULLMOVE_LIMIT = 12
+DEVELOPED_MINOR_BONUS = 18
+UNDEVELOPED_MINOR_PENALTY = 10
+EARLY_QUEEN_MOVE_PENALTY = 22
+EARLY_RIM_KNIGHT_PENALTY = 18
+CASTLING_READY_BONUS = 10
+CASTLED_KING_BONUS = 28
+CENTER_PAWN_OPENING_BONUS = 8
+MINOR_STARTING_SQUARES = {
+    chess.WHITE: (
+        (chess.B1, chess.KNIGHT),
+        (chess.G1, chess.KNIGHT),
+        (chess.C1, chess.BISHOP),
+        (chess.F1, chess.BISHOP),
+    ),
+    chess.BLACK: (
+        (chess.B8, chess.KNIGHT),
+        (chess.G8, chess.KNIGHT),
+        (chess.C8, chess.BISHOP),
+        (chess.F8, chess.BISHOP),
+    ),
+}
+MINOR_STARTING_SQUARE_SET = {
+    color: {square for square, _ in entries}
+    for color, entries in MINOR_STARTING_SQUARES.items()
+}
+QUEEN_STARTING_SQUARES = {
+    chess.WHITE: chess.D1,
+    chess.BLACK: chess.D8,
+}
+CASTLED_KING_SQUARES = {
+    chess.WHITE: (chess.G1, chess.C1),
+    chess.BLACK: (chess.G8, chess.C8),
+}
+CENTER_PAWN_TARGETS = {
+    chess.WHITE: (chess.D4, chess.E4),
+    chess.BLACK: (chess.D5, chess.E5),
+}
+KINGSIDE_CASTLING_PATHS = {
+    chess.WHITE: (chess.F1, chess.G1),
+    chess.BLACK: (chess.F8, chess.G8),
+}
+QUEENSIDE_CASTLING_PATHS = {
+    chess.WHITE: (chess.D1, chess.C1),
+    chess.BLACK: (chess.D8, chess.C8),
+}
 
 
 @dataclass
@@ -246,6 +292,89 @@ def _relative_rank(square: chess.Square, color: chess.Color) -> int:
 
 def _iter_file_squares(file_index: int) -> range:
     return range(file_index, 64, 8)
+
+
+def _opening_weight(board_state: chess.Board) -> float:
+    if board_state.fullmove_number > OPENING_FULLMOVE_LIMIT:
+        return 0.0
+    remaining = OPENING_FULLMOVE_LIMIT - board_state.fullmove_number + 1
+    return remaining / OPENING_FULLMOVE_LIMIT
+
+
+def _minor_development_counts(board_state: chess.Board, color: chess.Color) -> tuple[int, int]:
+    undeveloped = 0
+    for square, piece_type in MINOR_STARTING_SQUARES[color]:
+        piece = board_state.piece_at(square)
+        if piece and piece.color == color and piece.piece_type == piece_type:
+            undeveloped += 1
+
+    developed = 0
+    starting_squares = MINOR_STARTING_SQUARE_SET[color]
+    for piece_type in (chess.KNIGHT, chess.BISHOP):
+        developed += sum(
+            1
+            for square in board_state.pieces(piece_type, color)
+            if square not in starting_squares
+        )
+    return developed, undeveloped
+
+
+def _castling_path_clear(board_state: chess.Board, color: chess.Color, kingside: bool) -> bool:
+    path = KINGSIDE_CASTLING_PATHS[color] if kingside else QUEENSIDE_CASTLING_PATHS[color]
+    return all(board_state.piece_at(square) is None for square in path)
+
+
+def _opening_development_score(board_state: chess.Board) -> int:
+    weight = _opening_weight(board_state)
+    if weight <= 0:
+        return 0
+
+    score = 0
+    for color in (chess.WHITE, chess.BLACK):
+        sign = _sign(color)
+        developed, undeveloped = _minor_development_counts(board_state, color)
+        score += sign * (
+            developed * DEVELOPED_MINOR_BONUS
+            - undeveloped * UNDEVELOPED_MINOR_PENALTY
+        )
+
+        queen_start = QUEEN_STARTING_SQUARES[color]
+        queen_at_home = (
+            (piece := board_state.piece_at(queen_start))
+            and piece.color == color
+            and piece.piece_type == chess.QUEEN
+        )
+        if not queen_at_home and board_state.pieces(chess.QUEEN, color) and developed < 3:
+            score -= sign * EARLY_QUEEN_MOVE_PENALTY * (3 - developed)
+
+        king_square = board_state.king(color)
+        if king_square in CASTLED_KING_SQUARES[color]:
+            score += sign * CASTLED_KING_BONUS
+        else:
+            if board_state.has_kingside_castling_rights(color) and _castling_path_clear(
+                board_state,
+                color,
+                kingside=True,
+            ):
+                score += sign * CASTLING_READY_BONUS
+            if board_state.has_queenside_castling_rights(color) and _castling_path_clear(
+                board_state,
+                color,
+                kingside=False,
+            ):
+                score += sign * CASTLING_READY_BONUS
+
+        for square in CENTER_PAWN_TARGETS[color]:
+            piece = board_state.piece_at(square)
+            if piece and piece.color == color and piece.piece_type == chess.PAWN:
+                score += sign * CENTER_PAWN_OPENING_BONUS
+
+        if developed < 3:
+            for square in board_state.pieces(chess.KNIGHT, color):
+                if chess.square_file(square) in (0, 7) and _relative_rank(square, color) >= 3:
+                    score -= sign * EARLY_RIM_KNIGHT_PENALTY
+
+    return int(score * weight)
 
 
 def _position_key(board_state: chess.Board) -> Any:
@@ -538,6 +667,7 @@ def evaluate_board_state(board_state: chess.Board) -> int:
     middlegame_score += pawn_score + rook_score + mobility_score + hanging_score
     endgame_score += pawn_score + rook_score + int(mobility_score * 0.6) + hanging_score
     middlegame_score += _king_safety_score(board_state)
+    middlegame_score += _opening_development_score(board_state)
     endgame_score += TEMPO_BONUS if board_state.turn == chess.WHITE else -TEMPO_BONUS
 
     phase = min(MAX_PHASE, phase)
