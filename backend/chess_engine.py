@@ -207,13 +207,15 @@ MOBILITY_WEIGHTS = {
     chess.QUEEN: 1,
 }
 OPENING_FULLMOVE_LIMIT = 12
-DEVELOPED_MINOR_BONUS = 18
-UNDEVELOPED_MINOR_PENALTY = 10
-EARLY_QUEEN_MOVE_PENALTY = 22
-EARLY_RIM_KNIGHT_PENALTY = 18
-CASTLING_READY_BONUS = 10
-CASTLED_KING_BONUS = 28
-CENTER_PAWN_OPENING_BONUS = 8
+DEVELOPED_MINOR_BONUS = 9
+UNDEVELOPED_MINOR_PENALTY = 4
+EARLY_QUEEN_MOVE_PENALTY = 10
+EARLY_RIM_KNIGHT_PENALTY = 10
+CASTLING_READY_BONUS = 5
+CASTLED_KING_BONUS = 14
+CENTER_PAWN_OPENING_BONUS = 4
+OPENING_DEVELOPMENT_FULL_WEIGHT_MARGIN = PAWN_VALUE
+OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN = BISHOP_VALUE
 MINOR_STARTING_SQUARES = {
     chess.WHITE: (
         (chess.B1, chess.KNIGHT),
@@ -301,6 +303,26 @@ def _opening_weight(board_state: chess.Board) -> float:
     return remaining / OPENING_FULLMOVE_LIMIT
 
 
+def _material_balance(board_state: chess.Board) -> int:
+    score = 0
+    for piece in board_state.piece_map().values():
+        if piece.piece_type == chess.KING:
+            continue
+        score += _sign(piece.color) * material_values[piece.piece_type]
+    return score
+
+
+def _opening_material_weight(board_state: chess.Board) -> float:
+    imbalance = abs(_material_balance(board_state))
+    if imbalance <= OPENING_DEVELOPMENT_FULL_WEIGHT_MARGIN:
+        return 1.0
+    if imbalance >= OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN:
+        return 0.0
+
+    fade_span = OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN - OPENING_DEVELOPMENT_FULL_WEIGHT_MARGIN
+    return (OPENING_DEVELOPMENT_ZERO_WEIGHT_MARGIN - imbalance) / fade_span
+
+
 def _minor_development_counts(board_state: chess.Board, color: chess.Color) -> tuple[int, int]:
     undeveloped = 0
     for square, piece_type in MINOR_STARTING_SQUARES[color]:
@@ -325,7 +347,7 @@ def _castling_path_clear(board_state: chess.Board, color: chess.Color, kingside:
 
 
 def _opening_development_score(board_state: chess.Board) -> int:
-    weight = _opening_weight(board_state)
+    weight = _opening_weight(board_state) * _opening_material_weight(board_state)
     if weight <= 0:
         return 0
 

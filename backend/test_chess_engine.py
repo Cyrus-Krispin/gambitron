@@ -99,13 +99,13 @@ def test_middlegame_king_table_rewards_safe_home_squares():
 
 
 def test_opening_development_rewards_minor_piece_development():
-    """Opening eval should prefer developing more pieces over leaving them home."""
+    """Opening eval should nudge natural development without becoming material."""
     start = chess.Board()
     developed = chess.Board(
         "rnbqkbnr/pppppppp/8/8/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 3"
     )
 
-    assert _opening_development_score(developed) > _opening_development_score(start) + 40
+    assert _opening_development_score(developed) > _opening_development_score(start) + 15
 
 
 def test_opening_development_penalizes_early_rim_knight_attack():
@@ -118,3 +118,12 @@ def test_opening_development_penalizes_early_rim_knight_attack():
     )
 
     assert _opening_development_score(rim_knight) > _opening_development_score(developed_knight)
+
+
+def test_opening_development_fades_when_material_is_imbalanced():
+    """Development should not make the engine ignore a real material advantage."""
+    imbalanced = chess.Board(
+        "rnb1kbnr/pppppppp/8/8/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 3"
+    )
+
+    assert _opening_development_score(imbalanced) == 0
