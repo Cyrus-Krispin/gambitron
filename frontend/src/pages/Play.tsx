@@ -99,7 +99,7 @@ export default function Play() {
           </div>
           <CaptureDisplay
             pieces={botCaptures}
-            pieceColor={botColor}
+            pieceColor={playerColor}
           />
           <TimerCard
             timeMs={botTimeMs}
@@ -197,7 +197,7 @@ export default function Play() {
           </div>
           <CaptureDisplay
             pieces={myCaptures}
-            pieceColor={playerColor}
+            pieceColor={botColor}
             materialDiff={game.materialDiff > 0 ? game.materialDiff : 0}
           />
           <TimerCard
@@ -210,7 +210,7 @@ export default function Play() {
 
       {/* Right rail */}
       <aside className="rail">
-        <section className="card" style={{ flex: 1 }}>
+        <section className="card move-list-card">
           <div className="card-head">
             <span className="title">Move list</span>
             <span
