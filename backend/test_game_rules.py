@@ -1,4 +1,5 @@
 """Tests for game rules checking."""
+import chess
 import pytest
 from game_rules import check_3_move_repetition
 
@@ -34,6 +35,18 @@ def test_triple_repetition():
         {"fen": other_fen},
         {"fen": initial_fen},  # 3rd time
     ]
+    assert check_3_move_repetition(moves) is True
+
+
+def test_repetition_counts_starting_position():
+    """Test that the initial board position counts as a repetition occurrence."""
+    board = chess.Board()
+    moves = []
+    for uci in ["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"]:
+        board.push(chess.Move.from_uci(uci))
+        moves.append({"fen": board.fen()})
+
+    assert board.can_claim_threefold_repetition() is True
     assert check_3_move_repetition(moves) is True
 
 
