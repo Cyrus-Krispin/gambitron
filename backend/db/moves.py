@@ -2,6 +2,7 @@
 import io
 import os
 import uuid
+from typing import Optional
 
 import chess
 import chess.pgn
@@ -21,6 +22,14 @@ PIECE_TO_SYMBOL = {
 }
 
 
+def _captured_piece_for_move(board: chess.Board, move: chess.Move):
+    """Return the captured piece for normal and en-passant captures."""
+    if board.is_en_passant(move):
+        captured_square = chess.square(chess.square_file(move.to_square), chess.square_rank(move.from_square))
+        return board.piece_at(captured_square)
+    return board.piece_at(move.to_square)
+
+
 def _ensure_pgn_dir() -> None:
     """Create PGN storage directory if it doesn't exist."""
     path = PGN_STORAGE_DIR
@@ -28,7 +37,7 @@ def _ensure_pgn_dir() -> None:
         os.makedirs(path, exist_ok=True)
 
 
-def _build_uci(san: str, from_square: str | None, to_square: str | None) -> str:
+def _build_uci(san: str, from_square: Optional[str], to_square: Optional[str]) -> str:
     """Build UCI string from SAN and squares. Handles promotion (e7e8=Q -> e7e8q)."""
     if from_square and to_square:
         if "=" in san:
@@ -43,9 +52,9 @@ async def append_move(
     ply: int,
     fen: str,
     san: str,
-    from_square: str | None = None,
-    to_square: str | None = None,
-    captured: str | None = None,
+    from_square: Optional[str] = None,
+    to_square: Optional[str] = None,
+    captured: Optional[str] = None,
 ) -> bool:
     """Append a move to in-memory storage. Returns True."""
     if game_id not in _memory_moves:
@@ -84,7 +93,7 @@ def _pgn_to_moves_list(pgn: str) -> list[dict]:
             to_sq = chess.square_name(move.to_square)
             captured = None
             if board.is_capture(move):
-                piece = board.piece_at(move.to_square)
+                piece = _captured_piece_for_move(board, move)
                 if piece:
                     captured = PIECE_TO_SYMBOL.get(piece.piece_type)
             board.push(move)
