@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useHistory } from "react-router-dom";
 
 const TIME_MODES = [
-  { id: "1+0",   cat: "Bullet",    val: "1+0",   minutes: 1,  sub: "1 min" },
-  { id: "2+1",   cat: "Bullet",    val: "2+1",   minutes: 2,  sub: "2 min · +1s" },
-  { id: "3+0",   cat: "Blitz",     val: "3+0",   minutes: 3,  sub: "3 min" },
-  { id: "3+2",   cat: "Blitz",     val: "3+2",   minutes: 3,  sub: "3 min · +2s" },
-  { id: "5+0",   cat: "Blitz",     val: "5+0",   minutes: 5,  sub: "5 min" },
-  { id: "10+0",  cat: "Rapid",     val: "10+0",  minutes: 10, sub: "10 min" },
-  { id: "15+10", cat: "Rapid",     val: "15+10", minutes: 15, sub: "15 min · +10s" },
-  { id: "30+0",  cat: "Classical", val: "30+0",  minutes: 30, sub: "30 min" },
+  { id: "1+0",   cat: "Bullet",    val: "1+0",   minutes: 1,  increment: 0,  sub: "1 min" },
+  { id: "2+1",   cat: "Bullet",    val: "2+1",   minutes: 2,  increment: 1,  sub: "2 min · +1s" },
+  { id: "3+0",   cat: "Blitz",     val: "3+0",   minutes: 3,  increment: 0,  sub: "3 min" },
+  { id: "3+2",   cat: "Blitz",     val: "3+2",   minutes: 3,  increment: 2,  sub: "3 min · +2s" },
+  { id: "5+0",   cat: "Blitz",     val: "5+0",   minutes: 5,  increment: 0,  sub: "5 min" },
+  { id: "10+0",  cat: "Rapid",     val: "10+0",  minutes: 10, increment: 0,  sub: "10 min" },
+  { id: "15+10", cat: "Rapid",     val: "15+10", minutes: 15, increment: 10, sub: "15 min · +10s" },
+  { id: "30+0",  cat: "Classical", val: "30+0",  minutes: 30, increment: 0,  sub: "30 min" },
 ];
 
 export default function Landing() {
@@ -25,7 +25,7 @@ export default function Landing() {
     } else {
       color = side === "w" ? "white" : "black";
     }
-    history.push(`/play/new?minutes=${mode.minutes}&color=${color}`);
+    history.push(`/play/new?minutes=${mode.minutes}&increment=${mode.increment}&color=${color}`);
   }
 
   return (

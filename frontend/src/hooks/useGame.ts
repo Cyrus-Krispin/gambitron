@@ -33,15 +33,17 @@ function computeResult(game: Chess): string {
 export interface UseGameOptions {
   gameId: string | null;
   initialMinutes?: number;
+  initialIncrementSeconds?: number;
   initialColor?: PlayerColor;
-  initialGameState?: { fen: string; timeControlMs: number; playerColor: PlayerColor };
-  onGameCreated?: (gameId: string, gameState: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => void;
+  initialGameState?: { fen: string; timeControlMs: number; incrementMs?: number; playerColor: PlayerColor };
+  onGameCreated?: (gameId: string, gameState: { fen: string; timeControlMs: number; incrementMs?: number; playerColor: PlayerColor }) => void;
 }
 
 export function useGame(options?: UseGameOptions) {
   const {
     gameId = null,
     initialMinutes = 5,
+    initialIncrementSeconds = 0,
     initialColor,
     initialGameState,
     onGameCreated,
@@ -74,6 +76,9 @@ export function useGame(options?: UseGameOptions) {
 
   const [startOpen, setStartOpen] = useState(!initialColor && !initialGameState);
   const [selectedMinutes] = useState(initialMinutes);
+  const [selectedIncrementMs] = useState(() =>
+    initialGameState?.incrementMs ?? Math.max(0, initialIncrementSeconds * 1000)
+  );
   const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? initialGameState?.playerColor ?? "white");
 
   const [fenInput, setFenInput] = useState("");
@@ -83,13 +88,11 @@ export function useGame(options?: UseGameOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const socketControllerRef = useRef<ReturnType<typeof createReconnectingSocket> | null>(null);
   const currentGameIdRef = useRef<string | null>(gameId);
-  const pendingStartRef = useRef<{ minutes: number; color: PlayerColor } | null>(null);
+  const pendingStartRef = useRef<{ minutes: number; incrementMs: number; color: PlayerColor } | null>(null);
   const playerColorRef = useRef<PlayerColor>("white");
   const onGameCreatedRef = useRef(onGameCreated);
-  const aiThinkingRef = useRef(false);
   onGameCreatedRef.current = onGameCreated;
   playerColorRef.current = playerColor;
-  aiThinkingRef.current = aiThinking;
 
   const apiBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
 
@@ -109,6 +112,11 @@ export function useGame(options?: UseGameOptions) {
     socketControllerRef.current?.close();
     socketControllerRef.current = null;
     wsRef.current = null;
+  }, []);
+
+  const syncServerTimes = useCallback((playerMs: number, aiMs: number) => {
+    setPlayerTimeMs(playerMs);
+    setAiTimeMs(aiMs);
   }, []);
 
   const callAIViaRest = useCallback(
@@ -423,7 +431,7 @@ export function useGame(options?: UseGameOptions) {
       setPlayerHasMoved(false);
       setGameEnded(false);
       setGameStarted(true);
-      pendingStartRef.current = { minutes, color };
+      pendingStartRef.current = { minutes, incrementMs: selectedIncrementMs, color };
 
       socketControllerRef.current?.close();
       const controller = createReconnectingSocket(
@@ -434,8 +442,7 @@ export function useGame(options?: UseGameOptions) {
             currentGameIdRef.current = m.gameId;
             pendingStartRef.current = null;
             playerColorRef.current = pc;
-            setPlayerTimeMs(m.playerTimeMs ?? m.timeControlMs);
-            setAiTimeMs(m.aiTimeMs ?? m.timeControlMs);
+            syncServerTimes(m.playerTimeMs ?? m.timeControlMs, m.aiTimeMs ?? m.timeControlMs);
             setInitialTimeMs(m.timeControlMs);
             setMoveHistory([]);
             try {
@@ -449,6 +456,7 @@ export function useGame(options?: UseGameOptions) {
             onGameCreatedRef.current?.(m.gameId, {
               fen: m.fen,
               timeControlMs: m.timeControlMs,
+              incrementMs: m.incrementMs,
               playerColor: pc,
             });
             if (pc === "black") {
@@ -465,17 +473,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
-            if (aiThinkingRef.current) {
-              setAiTimeMs(m.aiTimeMs);
-            } else {
-              const currentTurn = chess.turn();
-              const pt = m.playerColor === "white" ? "w" : "b";
-              if (currentTurn === pt) {
-                setPlayerTimeMs(m.playerTimeMs);
-              } else {
-                setAiTimeMs(m.aiTimeMs);
-              }
-            }
+            syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
                 chess.load(m.fen);
@@ -525,18 +523,7 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === currentGameIdRef.current) {
-              if (aiThinkingRef.current) {
-                setAiTimeMs(m.aiTimeMs);
-              } else {
-                const currentTurn = chess.turn();
-                const pc = playerColorRef.current;
-                const pt = pc === "white" ? "w" : "b";
-                if (currentTurn === pt) {
-                  setPlayerTimeMs(m.playerTimeMs);
-                } else {
-                  setAiTimeMs(m.aiTimeMs);
-                }
-              }
+              syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             }
           } else if (msg.type === "error") {
             setAiThinking(false);
@@ -555,6 +542,7 @@ export function useGame(options?: UseGameOptions) {
               sendMessage(ws!, {
                 type: "start_game",
                 timeControlMs: p.minutes * 60 * 1000,
+                incrementMs: p.incrementMs,
                 playerColor: p.color,
               });
             }
@@ -566,11 +554,11 @@ export function useGame(options?: UseGameOptions) {
       );
       socketControllerRef.current = controller;
     },
-    [chess, openEndgame]
+    [chess, openEndgame, selectedIncrementMs, syncServerTimes]
   );
 
   const connectToExistingGame = useCallback(
-    (gid: string, gameState?: { fen: string; timeControlMs: number; playerColor: PlayerColor }) => {
+    (gid: string, gameState?: { fen: string; timeControlMs: number; incrementMs?: number; playerColor: PlayerColor }) => {
       if (wsRef.current?.readyState === WebSocket.OPEN && currentGameIdRef.current === gid) {
         return;
       }
@@ -609,17 +597,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
-            if (aiThinkingRef.current) {
-              setAiTimeMs(m.aiTimeMs);
-            } else {
-              const currentTurn = chess.turn();
-              const pt = m.playerColor === "white" ? "w" : "b";
-              if (currentTurn === pt) {
-                setPlayerTimeMs(m.playerTimeMs);
-              } else {
-                setAiTimeMs(m.aiTimeMs);
-              }
-            }
+            syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
                 chess.load(m.fen);
@@ -635,18 +613,7 @@ export function useGame(options?: UseGameOptions) {
           } else if (msg.type === "time_update") {
             const m = msg as TimeUpdateMessage;
             if (m.gameId === gid) {
-              if (aiThinkingRef.current) {
-                setAiTimeMs(m.aiTimeMs);
-              } else {
-                const currentTurn = chess.turn();
-                const pc = playerColorRef.current;
-                const pt = pc === "white" ? "w" : "b";
-                if (currentTurn === pt) {
-                  setPlayerTimeMs(m.playerTimeMs);
-                } else {
-                  setAiTimeMs(m.aiTimeMs);
-                }
-              }
+              syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             }
           } else if (msg.type === "ai_move") {
             const m = msg as AIMoveMessage;
@@ -698,7 +665,7 @@ export function useGame(options?: UseGameOptions) {
       );
       socketControllerRef.current = controller;
     },
-    [chess, openEndgame]
+    [chess, openEndgame, syncServerTimes]
   );
 
   const loadFenAndMaybeAI = useCallback(

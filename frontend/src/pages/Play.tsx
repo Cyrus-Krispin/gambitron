@@ -46,18 +46,25 @@ export default function Play() {
   const minutesParam = search.get("minutes");
   const parsed = minutesParam ? parseInt(minutesParam, 10) : NaN;
   const initialMinutes = VALID_MINUTES.includes(parsed) ? parsed : 5;
+  const incrementParam = search.get("increment");
+  const parsedIncrement = incrementParam ? parseInt(incrementParam, 10) : NaN;
+  const initialIncrementSeconds =
+    Number.isInteger(parsedIncrement) && parsedIncrement >= 0 && parsedIncrement <= 60
+      ? parsedIncrement
+      : 0;
   const colorParam = search.get("color");
   const initialColor =
     colorParam === "white" || colorParam === "black" ? colorParam : undefined;
   const initialGameState = (
     location.state as {
-      gameState?: { fen: string; timeControlMs: number; playerColor: "white" | "black" };
+      gameState?: { fen: string; timeControlMs: number; incrementMs?: number; playerColor: "white" | "black" };
     }
   )?.gameState;
 
   const game = useGame({
     gameId: gameId ?? null,
     initialMinutes,
+    initialIncrementSeconds,
     initialColor,
     initialGameState,
     onGameCreated: (id, state) => {

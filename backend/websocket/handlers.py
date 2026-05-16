@@ -134,25 +134,41 @@ def _validate_player_move(
     )
 
 
+def _coerce_increment_ms(value) -> int | None:
+    """Return a sanitized non-negative increment, or None for invalid input."""
+    if value is None:
+        return 0
+    if not isinstance(value, (int, float)):
+        return None
+    value = int(value)
+    if value < 0:
+        return None
+    return value
+
+
 async def handle_start_game(ws: WebSocket, data: dict) -> dict | None:
     """Handle start_game. Returns response to send."""
     time_control_ms = data.get("timeControlMs")
+    increment_ms = _coerce_increment_ms(data.get("incrementMs"))
     player_color = data.get("playerColor", "white")
     if time_control_ms is None or not isinstance(time_control_ms, (int, float)):
         return {"type": "error", "message": "timeControlMs required"}
+    if increment_ms is None:
+        return {"type": "error", "message": "incrementMs must be a non-negative number"}
     time_control_ms = int(time_control_ms)
     if player_color not in ("white", "black"):
         player_color = "white"
 
-    game_id = await games_db.create_game(time_control_ms, player_color)
+    game_id = await games_db.create_game(time_control_ms, player_color, increment_ms)
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-    timers_module.register_game(game_id, time_control_ms, player_color, fen)
+    timers_module.register_game(game_id, time_control_ms, player_color, fen, increment_ms)
     connection_manager.subscribe(ws, game_id)
     return {
         "type": "game_started",
         "gameId": str(game_id),
         "fen": fen,
         "timeControlMs": time_control_ms,
+        "incrementMs": increment_ms,
         "playerTimeMs": time_control_ms,
         "aiTimeMs": time_control_ms,
     }
@@ -228,6 +244,7 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
         timers_module.clear_player_first_move_pending(game_id)
 
     await moves_db.append_move(game_id, player_ply, fen, san, from_sq, to_sq, player_captured)
+    timers_module.add_player_increment(game_id)
 
     # Check for draw by 3-move repetition after player move
     all_moves = await moves_db.get_moves_by_game(game_id)
@@ -257,6 +274,20 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
 
     ai_result = await _run_ai(fen)
     times = timers_module.apply_elapsed(game_id)
+    if times:
+        pt, at = times
+        t = timers_module.get_timer(game_id)
+        if t and not timers_module.is_player_turn(t["fen"], player_color) and at <= 0:
+            timers_module.mark_ended(game_id)
+            timers_module.remove_game(game_id)
+            timeout_result = "1-0" if player_color == "white" else "0-1"
+            await moves_db.finalize_game_to_pgn(game_id, timeout_result, "timeout", player_color)
+            return {
+                "type": "game_ended",
+                "gameId": str(game_id),
+                "result": timeout_result,
+                "termination": "timeout",
+            }
     updated_fen = ai_result["updated_fen"]
     result = ai_result["result"]
 
@@ -268,6 +299,7 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
     await moves_db.append_move(game_id, ai_ply, updated_fen, ai_san, ai_from, ai_to, ai_captured)
 
     timers_module.update_fen(game_id, updated_fen)
+    timers_module.add_ai_increment(game_id)
 
     # Check for draw by 3-move repetition after AI move
     all_moves = await moves_db.get_moves_by_game(game_id)
@@ -367,6 +399,7 @@ async def handle_request_ai_move(ws: WebSocket, data: dict) -> dict | None:
 
     timers_module.update_fen(game_id, updated_fen)
     timers_module.clear_ai_first_move_pending(game_id)
+    timers_module.add_ai_increment(game_id)
 
     # Check for draw by 3-move repetition after AI move
     all_moves = await moves_db.get_moves_by_game(game_id)
@@ -461,6 +494,7 @@ async def handle_subscribe(ws: WebSocket, data: dict) -> dict | None:
             "playerTimeMs": t["player_time_ms"],
             "aiTimeMs": t["ai_time_ms"],
             "timeControlMs": time_control_ms,
+            "incrementMs": t.get("increment_ms", 0),
             "playerColor": player_color,
         }
 

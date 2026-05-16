@@ -26,13 +26,16 @@ def register_game(
     time_control_ms: int,
     player_color: str,
     fen: str,
+    increment_ms: int = 0,
 ) -> None:
     """Register a new game with timer. Both clocks start at time_control_ms.
     ai_first_move_pending: when player is black, AI moves first - don't tick until AI has moved.
     player_first_move_pending: when player is white, don't tick player clock until they move."""
+    increment_ms = max(0, int(increment_ms))
     _game_timers[game_id] = {
         "player_time_ms": time_control_ms,
         "ai_time_ms": time_control_ms,
+        "increment_ms": increment_ms,
         "last_tick_ts": time.time(),
         "player_color": player_color,
         "fen": fen,
@@ -76,6 +79,27 @@ def update_fen(game_id: uuid.UUID, fen: str) -> None:
     t = _game_timers.get(game_id)
     if t and not t.get("game_ended"):
         t["fen"] = fen
+
+
+def _add_increment(game_id: uuid.UUID, clock_key: str) -> tuple[int, int] | None:
+    """Add the configured increment to one side's clock after a completed move."""
+    t = _game_timers.get(game_id)
+    if not t or t.get("game_ended"):
+        return None
+    increment_ms = t.get("increment_ms", 0)
+    if increment_ms > 0:
+        t[clock_key] += increment_ms
+    return (t["player_time_ms"], t["ai_time_ms"])
+
+
+def add_player_increment(game_id: uuid.UUID) -> tuple[int, int] | None:
+    """Add the configured increment after the human player completes a move."""
+    return _add_increment(game_id, "player_time_ms")
+
+
+def add_ai_increment(game_id: uuid.UUID) -> tuple[int, int] | None:
+    """Add the configured increment after the AI completes a move."""
+    return _add_increment(game_id, "ai_time_ms")
 
 
 def clear_ai_first_move_pending(game_id: uuid.UUID) -> None:

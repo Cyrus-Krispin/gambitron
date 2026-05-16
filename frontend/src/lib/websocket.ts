@@ -3,6 +3,7 @@
 export interface StartGamePayload {
   type: "start_game";
   timeControlMs: number;
+  incrementMs?: number;
   playerColor: "white" | "black";
 }
 
@@ -54,6 +55,7 @@ export interface GameStartedMessage {
   gameId: string;
   fen: string;
   timeControlMs: number;
+  incrementMs?: number;
   playerTimeMs?: number;
   aiTimeMs?: number;
 }
@@ -72,6 +74,7 @@ export interface GameStateMessage {
   playerTimeMs: number;
   aiTimeMs: number;
   timeControlMs: number;
+  incrementMs?: number;
   playerColor: "white" | "black";
   result?: string;
   termination?: string;
