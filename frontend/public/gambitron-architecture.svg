@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="660" viewBox="0 0 1120 660" role="img" aria-labelledby="title desc">
+  <title id="title">Gambitron application architecture</title>
+  <desc id="desc">React client communicates with a FastAPI backend over WebSocket and REST. The backend runs timers, the chess engine, and stores finished games in PostgreSQL as PGN for replay.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#d69b55"/>
+    </marker>
+    <style>
+      .bg { fill: #201d19; }
+      .panel { fill: #29251f; stroke: #544c42; stroke-width: 1.4; }
+      .node { fill: #211f1b; stroke: #62594d; stroke-width: 1.2; }
+      .node-soft { fill: #24211d; stroke: #4d463e; stroke-width: 1.1; }
+      .ink { fill: #f1ece4; font: 600 19px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .dim { fill: #b9afa2; font: 14px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .tiny { fill: #9b9184; font: 12px "JetBrains Mono", "SF Mono", Menlo, monospace; }
+      .mono { fill: #d69b55; font: 12px "JetBrains Mono", "SF Mono", Menlo, monospace; }
+      .heading { fill: #f1ece4; font: 400 31px Georgia, "Times New Roman", serif; }
+      .eyebrow { fill: #d69b55; font: 12px "JetBrains Mono", "SF Mono", Menlo, monospace; text-transform: uppercase; }
+      .line { stroke: #d69b55; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .line-soft { stroke: #7d6f60; stroke-width: 1.5; fill: none; stroke-dasharray: 5 6; marker-end: url(#arrow); }
+      .step { fill: #28241f; stroke: #51493f; stroke-width: 1; }
+      .step-num { fill: #d69b55; font: 600 13px "JetBrains Mono", "SF Mono", Menlo, monospace; }
+      .step-text { fill: #eee8df; font: 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1120" height="660"/>
+
+  <text class="eyebrow" x="56" y="58">Gambitron architecture</text>
+  <text class="heading" x="56" y="95">One real-time game loop, one durable record.</text>
+  <text class="dim" x="56" y="123">The browser keeps the board responsive while FastAPI owns live play, clocks, engine replies, and replay data.</text>
+
+  <g transform="translate(56 162)">
+    <rect class="panel" width="300" height="300" rx="8"/>
+    <text class="ink" x="24" y="42">Client</text>
+    <text class="mono" x="24" y="65">React · TypeScript · Vercel</text>
+
+    <rect class="node" x="24" y="94" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="118">Board, clocks, dialogs</text>
+    <text class="tiny" x="44" y="136">routes: play · history · replay</text>
+
+    <rect class="node" x="24" y="166" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="190">chess.js move handling</text>
+    <text class="tiny" x="44" y="208">legal squares · FEN · SAN</text>
+
+    <rect class="node" x="24" y="238" width="252" height="38" rx="6"/>
+    <text class="dim" x="44" y="262">WebSocket + REST clients</text>
+  </g>
+
+  <g transform="translate(410 162)">
+    <rect class="panel" width="300" height="300" rx="8"/>
+    <text class="ink" x="24" y="42">Backend</text>
+    <text class="mono" x="24" y="65">FastAPI · EC2</text>
+
+    <rect class="node" x="24" y="94" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="118">/ws game session</text>
+    <text class="tiny" x="44" y="136">start · move · subscribe</text>
+
+    <rect class="node" x="24" y="166" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="190">Timer loop</text>
+    <text class="tiny" x="44" y="208">100 ms tick · timeouts</text>
+
+    <rect class="node" x="24" y="238" width="252" height="38" rx="6"/>
+    <text class="dim" x="44" y="262">Minimax engine thread</text>
+  </g>
+
+  <g transform="translate(764 162)">
+    <rect class="panel" width="300" height="300" rx="8"/>
+    <text class="ink" x="24" y="42">Data &amp; replay</text>
+    <text class="mono" x="24" y="65">PostgreSQL · PGN</text>
+
+    <rect class="node" x="24" y="94" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="118">games table</text>
+    <text class="tiny" x="44" y="136">id · result · time control</text>
+
+    <rect class="node" x="24" y="166" width="252" height="54" rx="6"/>
+    <text class="dim" x="44" y="190">PGN finalization</text>
+    <text class="tiny" x="44" y="208">written when a game ends</text>
+
+    <rect class="node" x="24" y="238" width="252" height="38" rx="6"/>
+    <text class="dim" x="44" y="262">REST history endpoints</text>
+  </g>
+
+  <path class="line" d="M356 282 H410"/>
+  <text class="tiny" x="365" y="266">WebSocket /ws</text>
+
+  <path class="line" d="M710 282 H764"/>
+  <text class="tiny" x="718" y="266">persist</text>
+
+  <path class="line-soft" d="M764 400 C690 430 430 430 356 400"/>
+  <text class="tiny" x="502" y="438">GET /games · GET /games/:id/moves</text>
+
+  <path class="line-soft" d="M410 331 H356"/>
+  <text class="tiny" x="360" y="354">ai_move · time_update</text>
+
+  <g transform="translate(56 520)">
+    <text class="eyebrow" x="0" y="-18">Move lifecycle</text>
+
+    <rect class="step" x="0" y="0" width="180" height="70" rx="7"/>
+    <text class="step-num" x="18" y="27">01</text>
+    <text class="step-text" x="54" y="27">Start game</text>
+    <text class="tiny" x="18" y="50">time + side</text>
+
+    <path class="line" d="M185 35 H215"/>
+
+    <rect class="step" x="220" y="0" width="180" height="70" rx="7"/>
+    <text class="step-num" x="238" y="27">02</text>
+    <text class="step-text" x="274" y="27">Player move</text>
+    <text class="tiny" x="238" y="50">FEN + SAN over WS</text>
+
+    <path class="line" d="M405 35 H435"/>
+
+    <rect class="step" x="440" y="0" width="180" height="70" rx="7"/>
+    <text class="step-num" x="458" y="27">03</text>
+    <text class="step-text" x="494" y="27">Engine search</text>
+    <text class="tiny" x="458" y="50">minimax + pruning</text>
+
+    <path class="line" d="M625 35 H655"/>
+
+    <rect class="step" x="660" y="0" width="180" height="70" rx="7"/>
+    <text class="step-num" x="678" y="27">04</text>
+    <text class="step-text" x="714" y="27">AI reply</text>
+    <text class="tiny" x="678" y="50">board + clocks update</text>
+
+    <path class="line" d="M845 35 H875"/>
+
+    <rect class="step" x="880" y="0" width="180" height="70" rx="7"/>
+    <text class="step-num" x="898" y="27">05</text>
+    <text class="step-text" x="934" y="27">Replay later</text>
+    <text class="tiny" x="898" y="50">PGN from Postgres</text>
+  </g>
+</svg>

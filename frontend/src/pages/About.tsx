@@ -1,5 +1,28 @@
 import { Link } from "react-router-dom";
 
+const FLOW = [
+  {
+    num: "01",
+    title: "Start a session",
+    body: "React opens a WebSocket and sends the selected time control and side. FastAPI creates a game record, starts server-owned clocks, and subscribes the socket to that game.",
+  },
+  {
+    num: "02",
+    title: "Play a move",
+    body: "The board uses chess.js for local move rules and instant feedback. When you move, the client sends the new FEN, SAN, and square data to the backend.",
+  },
+  {
+    num: "03",
+    title: "Let the engine think",
+    body: "FastAPI stores the player move, updates clock state, then runs the minimax engine off the event loop so the WebSocket stays responsive.",
+  },
+  {
+    num: "04",
+    title: "Reply and remember",
+    body: "The AI move comes back over WebSocket with clock updates. When the game ends, moves are finalized to PGN and saved for the History and Replay pages.",
+  },
+];
+
 const STEPS = [
   {
     num: "01",
@@ -101,7 +124,42 @@ export default function About() {
       </section>
 
       <section className="about-block">
-        <div className="section-label">How it works</div>
+        <div className="section-label">Architecture</div>
+        <div className="architecture-copy">
+          <h3>A small real-time system around a chess engine.</h3>
+          <p>
+            Gambitron keeps the board fast in the browser and moves the expensive work to the
+            backend. The client handles interaction and legal-move hints; FastAPI owns game
+            sessions, clocks, AI turns, and persistence.
+          </p>
+        </div>
+
+        <figure className="architecture-figure">
+          <img
+            src="/gambitron-architecture.svg"
+            alt="Gambitron architecture diagram showing the React client, FastAPI backend, minimax engine, timers, PostgreSQL, and replay flow"
+          />
+          <figcaption>
+            <span>Editable Draw.io source</span>
+            <a href="/gambitron-architecture.drawio" download>
+              Download .drawio
+            </a>
+          </figcaption>
+        </figure>
+
+        <div className="flow-grid" aria-label="Application flow">
+          {FLOW.map((s) => (
+            <article key={s.num} className="flow-step">
+              <div className="step-num">{s.num}</div>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="about-block">
+        <div className="section-label">How to play</div>
         <div className="about-steps">
           {STEPS.map((s) => (
             <article key={s.num} className="step">

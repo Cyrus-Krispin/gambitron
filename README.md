@@ -26,13 +26,15 @@
 
 ## How It Works
 
-```
-React (Vercel) ←——WebSocket——→ FastAPI (EC2) ←——→ PostgreSQL
-```
+![Gambitron Architecture](frontend/public/gambitron-architecture.svg)
 
-The frontend communicates over a persistent WebSocket. The server runs the AI on a thread pool, owns the clocks (100 ms tick), and persists games as PGN. A REST API (`GET /games`, `GET /games/:id/moves`) powers the history and replay pages.
+The browser handles the board UI, legal-move hints, and replay controls. Live games run through a persistent WebSocket to FastAPI, which owns game sessions, server-side clocks, AI turns, and endgame detection.
+
+FastAPI runs the minimax engine off the event loop, broadcasts `ai_move` and `time_update` messages, and finalizes completed games to PGN. PostgreSQL stores finished games so `GET /games` and `GET /games/:id/moves` can power the History and Replay pages.
 
 **AI evaluation factors:** material values, piece-square tables, center control, pawn advancement, bishop pair bonus, rook mobility, king safety.
+
+Editable diagram source: [frontend/public/gambitron-architecture.drawio](frontend/public/gambitron-architecture.drawio)
 
 ## Quick Start
 
