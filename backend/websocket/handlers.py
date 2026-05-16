@@ -1,5 +1,8 @@
 """WebSocket message handlers."""
+from __future__ import annotations
+
 import asyncio
+from dataclasses import dataclass
 import json
 import uuid
 
@@ -12,6 +15,25 @@ from db import moves as moves_db
 from game_rules import check_3_move_repetition
 from websocket import connection_manager
 from websocket import timers as timers_module
+
+PIECE_TO_SYMBOL = {
+    chess.PAWN: "p",
+    chess.KNIGHT: "n",
+    chess.BISHOP: "b",
+    chess.ROOK: "r",
+    chess.QUEEN: "q",
+}
+
+PROMOTION_PIECES = {"q", "r", "b", "n"}
+
+
+@dataclass
+class ValidatedPlayerMove:
+    board: chess.Board
+    san: str
+    from_square: str
+    to_square: str
+    captured: str | None
 
 
 async def _run_ai(fen: str):
@@ -26,6 +48,90 @@ def _termination_from_result(result: str) -> str:
     if result == "1/2-1/2":
         return "draw"
     return "unknown"
+
+
+def _captured_piece_symbol(board: chess.Board, move: chess.Move) -> str | None:
+    """Return captured piece metadata before pushing a legal move."""
+    if board.is_en_passant(move):
+        captured_square = chess.square(chess.square_file(move.to_square), chess.square_rank(move.from_square))
+        captured_piece = board.piece_at(captured_square)
+    else:
+        captured_piece = board.piece_at(move.to_square)
+    if not captured_piece:
+        return None
+    return PIECE_TO_SYMBOL.get(captured_piece.piece_type)
+
+
+def _promotion_from_payload(data: dict, san: str | None) -> str:
+    promotion = data.get("promotion")
+    if isinstance(promotion, str) and promotion.lower() in PROMOTION_PIECES:
+        return promotion.lower()
+    if san and "=" in san:
+        candidate = san.split("=")[-1].strip().lower()[:1]
+        if candidate in PROMOTION_PIECES:
+            return candidate
+    return ""
+
+
+def _move_from_payload(
+    board: chess.Board,
+    data: dict,
+    san: str | None,
+    from_sq: str | None,
+    to_sq: str | None,
+) -> chess.Move | None:
+    """Build a move from client payload fields against the server board."""
+    if from_sq and to_sq:
+        try:
+            return chess.Move.from_uci(f"{from_sq}{to_sq}{_promotion_from_payload(data, san)}")
+        except ValueError:
+            return None
+    if san:
+        try:
+            return board.parse_san(san)
+        except ValueError:
+            return None
+    return None
+
+
+def _validate_player_move(
+    previous_fen: str,
+    submitted_fen: str,
+    data: dict,
+    san: str | None,
+    from_sq: str | None,
+    to_sq: str | None,
+) -> ValidatedPlayerMove | None:
+    """Validate a client move from the server's previous FEN to the submitted FEN."""
+    try:
+        previous_board = chess.Board(previous_fen)
+    except ValueError:
+        return None
+
+    move = _move_from_payload(previous_board, data, san, from_sq, to_sq)
+    if move is None or move not in previous_board.legal_moves:
+        return None
+
+    canonical_san = previous_board.san(move)
+    canonical_from = chess.square_name(move.from_square)
+    canonical_to = chess.square_name(move.to_square)
+    captured = _captured_piece_symbol(previous_board, move)
+
+    previous_board.push(move)
+    try:
+        submitted_board = chess.Board(submitted_fen)
+    except ValueError:
+        return None
+    if submitted_board.fen() != previous_board.fen():
+        return None
+
+    return ValidatedPlayerMove(
+        board=previous_board,
+        san=canonical_san,
+        from_square=canonical_from,
+        to_square=canonical_to,
+        captured=captured,
+    )
 
 
 async def handle_start_game(ws: WebSocket, data: dict) -> dict | None:
@@ -75,11 +181,15 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
         return {"type": "error", "message": "Game not found or already ended"}
 
     player_color = game.get("player_color", "white")
+    timer = timers_module.get_timer(game_id)
+    if not timer:
+        return {"type": "error", "message": "Game state unavailable"}
+    previous_fen = timer["fen"]
+
     times = timers_module.apply_elapsed(game_id)
     if times:
         pt, at = times
-        t = timers_module.get_timer(game_id)
-        if t and timers_module.is_player_turn(fen, player_color) and pt <= 0:
+        if timers_module.is_player_turn(previous_fen, player_color) and pt <= 0:
             timers_module.mark_ended(game_id)
             timers_module.remove_game(game_id)
             timeout_result = "0-1" if player_color == "white" else "1-0"
@@ -91,24 +201,33 @@ async def handle_player_move(ws: WebSocket, data: dict) -> dict | None:
                 "termination": "timeout",
             }
 
+    if not timers_module.is_player_turn(previous_fen, player_color):
+        return {"type": "error", "message": "Not player's turn"}
+
+    validated_move = _validate_player_move(
+        previous_fen,
+        fen,
+        data,
+        san,
+        from_sq,
+        to_sq,
+    )
+    if validated_move is None:
+        return {"type": "error", "message": "Illegal move"}
+    board = validated_move.board
+    fen = board.fen()
+    san = validated_move.san
+    from_sq = validated_move.from_square
+    to_sq = validated_move.to_square
+    player_captured = validated_move.captured
+
     move_count = await moves_db.get_move_count(game_id)
     player_ply = move_count + 1
 
     if player_color == "white" and move_count == 0:
         timers_module.clear_player_first_move_pending(game_id)
 
-    if san is None and from_sq and to_sq:
-        san = f"{from_sq}{to_sq}"
-    if not san:
-        san = ""
-
-    player_captured = data.get("captured")
     await moves_db.append_move(game_id, player_ply, fen, san, from_sq, to_sq, player_captured)
-
-    try:
-        board = chess.Board(fen)
-    except ValueError:
-        return {"type": "error", "message": "Invalid FEN"}
 
     # Check for draw by 3-move repetition after player move
     all_moves = await moves_db.get_moves_by_game(game_id)
