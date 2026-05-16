@@ -1,4 +1,5 @@
 """Game CRUD operations."""
+import json
 import uuid
 
 from db.connection import get_pool
@@ -7,27 +8,31 @@ from db.connection import get_pool
 _memory_games: dict[uuid.UUID, dict] = {}
 
 
-async def create_game(time_control_ms: int, player_color: str) -> uuid.UUID:
+async def create_game(time_control_ms: int, player_color: str, increment_ms: int = 0) -> uuid.UUID:
     """Create a new game. Returns game_id. Uses in-memory when DB unavailable (local dev)."""
     pool = get_pool()
     if not pool:
         gid = uuid.uuid4()
+        metadata = {"increment_ms": increment_ms}
         _memory_games[gid] = {
             "id": gid,
             "time_control_ms": time_control_ms,
+            "increment_ms": increment_ms,
             "player_color": player_color,
             "ended_at": None,
+            "metadata": metadata,
         }
         return gid
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO games (time_control_ms, player_color)
-            VALUES ($1, $2)
+            INSERT INTO games (time_control_ms, player_color, metadata)
+            VALUES ($1, $2, $3::jsonb)
             RETURNING id
             """,
             time_control_ms,
             player_color,
+            json.dumps({"increment_ms": increment_ms}),
         )
         return row["id"]
 

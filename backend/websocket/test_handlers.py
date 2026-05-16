@@ -12,14 +12,34 @@ import pytest
 @pytest.fixture(autouse=True)
 def cleanup_handler_modules():
     yield
-    for module_name in ("websocket.handlers", "websocket.timers"):
+    for module_name in ("websocket.handlers", "websocket.timers", "db.games", "db.moves"):
         sys.modules.pop(module_name, None)
+    websocket_module = sys.modules.get("websocket")
+    if websocket_module:
+        for attr in ("handlers", "timers"):
+            if hasattr(websocket_module, attr):
+                delattr(websocket_module, attr)
+    db_module = sys.modules.get("db")
+    if db_module:
+        for attr in ("games", "moves"):
+            if hasattr(db_module, attr):
+                delattr(db_module, attr)
 
 
 def _load_handlers(monkeypatch):
     """Load handlers with DB modules stubbed for pure handler tests."""
-    for module_name in ("websocket.handlers", "websocket.timers"):
+    for module_name in ("websocket.handlers", "websocket.timers", "db.games", "db.moves"):
         sys.modules.pop(module_name, None)
+    websocket_module = sys.modules.get("websocket")
+    if websocket_module:
+        for attr in ("handlers", "timers"):
+            if hasattr(websocket_module, attr):
+                delattr(websocket_module, attr)
+    db_module = sys.modules.get("db")
+    if db_module:
+        for attr in ("games", "moves"):
+            if hasattr(db_module, attr):
+                delattr(db_module, attr)
 
     games: dict[uuid.UUID, dict] = {}
     appended_moves: list[dict] = []
@@ -71,10 +91,11 @@ def _load_handlers(monkeypatch):
         board = chess.Board(fen)
         return (player_color == "white") == (board.turn == chess.WHITE)
 
-    def register_game(game_id, time_control_ms, player_color, fen):
+    def register_game(game_id, time_control_ms, player_color, fen, increment_ms=0):
         timers_state[game_id] = {
             "player_time_ms": time_control_ms,
             "ai_time_ms": time_control_ms,
+            "increment_ms": increment_ms,
             "player_color": player_color,
             "fen": fen,
             "game_ended": False,
@@ -96,6 +117,18 @@ def _load_handlers(monkeypatch):
     def clear_player_first_move_pending(game_id):
         timers_state[game_id]["player_first_move_pending"] = False
 
+    def add_player_increment(game_id):
+        timer = timers_state.get(game_id)
+        if timer:
+            timer["player_time_ms"] += timer.get("increment_ms", 0)
+        return timer["player_time_ms"], timer["ai_time_ms"]
+
+    def add_ai_increment(game_id):
+        timer = timers_state.get(game_id)
+        if timer:
+            timer["ai_time_ms"] += timer.get("increment_ms", 0)
+        return timer["player_time_ms"], timer["ai_time_ms"]
+
     def mark_ended(game_id):
         timers_state[game_id]["game_ended"] = True
 
@@ -110,6 +143,8 @@ def _load_handlers(monkeypatch):
         apply_elapsed=apply_elapsed,
         update_fen=update_fen,
         clear_player_first_move_pending=clear_player_first_move_pending,
+        add_player_increment=add_player_increment,
+        add_ai_increment=add_ai_increment,
         mark_ended=mark_ended,
         remove_game=remove_game,
     )
