@@ -522,6 +522,16 @@ a { color: inherit; text-decoration: none; }
   border-radius: 50%;
 }
 
+/* Checkmate king highlight — red tint */
+.square.checkmated { background: color-mix(in oklab, var(--accent), oklch(0.35 0.03 25) 60%); }
+.square.dark.checkmated { background: color-mix(in oklab, var(--accent-dim), oklch(0.2 0.02 15) 50%); }
+.square.checkmated::before { opacity: 0; }
+
+/* Draw king highlight — amber tint */
+.square.drawn-king { background: color-mix(in oklab, var(--board-light), oklch(0.72 0.12 85) 55%); }
+.square.dark.drawn-king { background: color-mix(in oklab, var(--board-dark), oklch(0.72 0.12 85) 45%); }
+.square.drawn-king::before { opacity: 0; }
+
 /* Board coordinates */
 .square .coord {
   position: absolute;
@@ -826,6 +836,75 @@ body.hide-coords .square .coord { display: none; }
   line-height: 1.7;
 }
 
+.architecture-copy {
+  max-width: 720px;
+  margin-bottom: 24px;
+}
+.architecture-copy h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 38px;
+  line-height: 1.05;
+  margin: 0 0 12px;
+}
+.architecture-copy p {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0;
+}
+.architecture-figure {
+  margin: 0 0 28px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-elev);
+  overflow-x: auto;
+}
+.architecture-figure img {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+}
+.architecture-figure figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--line-soft);
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+.architecture-figure a {
+  color: var(--accent);
+}
+
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+.flow-step {
+  background: var(--bg);
+  padding: 22px 20px 24px;
+}
+.flow-step h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+.flow-step p {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .about-steps {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -933,6 +1012,62 @@ body.hide-coords .square .coord { display: none; }
   margin: 0 12px;
   letter-spacing: 0.1em;
 }
+
+/* ---------- Endgame banner (non-obstructive) ---------- */
+.endgame-banner-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  pointer-events: none;
+  animation: endgameOverlayIn 1500ms ease-out both;
+}
+@keyframes endgameOverlayIn {
+  0% { opacity: 0; }
+  70% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.endgame-banner {
+  pointer-events: auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  padding: 28px 32px;
+  width: min(90vw, 340px);
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+.endgame-banner h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  margin: 0 0 2px;
+}
+.endgame-banner h3 em { color: var(--accent); font-style: italic; }
+.endgame-banner .reason {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 22px;
+}
+.endgame-banner .modal-actions { display: flex; gap: 10px; justify-content: center; }
+.endgame-banner .modal-actions button {
+  padding: 10px 20px;
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: none;
+  cursor: pointer;
+}
+.endgame-banner .modal-actions button.primary { background: var(--ink); color: #1a1a1a; border-color: var(--ink); }
+.endgame-banner .modal-actions button:hover { background: var(--bg-card); }
+.endgame-banner .modal-actions button.primary:hover { background: var(--accent); border-color: var(--accent); }
 
 /* ---------- Result modal ---------- */
 .modal-overlay {
@@ -1096,6 +1231,8 @@ body.hide-coords .square .coord { display: none; }
   .topbar { padding: 18px 20px; }
   .about { padding: 32px 20px 80px; }
   .about-hero { grid-template-columns: 1fr; gap: 28px; margin-bottom: 48px; }
+  .architecture-copy h3 { font-size: 32px; }
+  .flow-grid { grid-template-columns: 1fr; }
   .about-steps { grid-template-columns: 1fr; }
   .history { padding: 32px 20px 80px; }
 }

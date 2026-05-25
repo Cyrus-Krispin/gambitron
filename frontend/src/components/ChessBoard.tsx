@@ -22,6 +22,7 @@ interface ChessBoardProps {
   onDragStart: (square: string) => void;
   onDropPiece: (from: string, to: string) => void;
   onDragEnd: () => void;
+  highlightedSquares?: Array<{ square: string; className: string }>;
 }
 
 export function ChessBoard({
@@ -40,6 +41,7 @@ export function ChessBoard({
   onDragStart,
   onDropPiece,
   onDragEnd,
+  highlightedSquares,
 }: ChessBoardProps) {
   const flipped = orientation === "black";
   const fileLabels = flipped ? [...HORIZONTAL].reverse() : HORIZONTAL;
@@ -66,6 +68,7 @@ export function ChessBoard({
           const isLastFrom = lastMove?.from === squareName;
           const isLastTo = lastMove?.to === squareName;
           const hasPiece = !!piece;
+          const highlight = highlightedSquares?.find((h) => h.square === squareName);
 
           const showFile = flipped ? rowIdx === 0 : rowIdx === 7;
           const showRank = flipped ? colIdx === 7 : colIdx === 0;
@@ -77,6 +80,7 @@ export function ChessBoard({
             isLastFrom ? "last-from" : "",
             isLastTo ? "last-to" : "",
             hasPiece ? "has-piece" : "",
+            highlight?.className ?? "",
           ]
             .filter(Boolean)
             .join(" ");

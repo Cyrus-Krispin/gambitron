@@ -1,4 +1,6 @@
 """Game timer state and tick logic. Backend owns clocks and detects timeouts."""
+from __future__ import annotations
+
 import time
 import uuid
 

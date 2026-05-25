@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
-import { playMoveSound } from "@/utils/sounds";
+import { playMoveSound, playCheckmateSound } from "@/utils/sounds";
 import {
   createReconnectingSocket,
   sendMessage,
@@ -28,6 +28,22 @@ function computeResult(game: Chess): string {
     return winner === "w" ? "1-0" : "0-1";
   }
   return "1/2-1/2";
+}
+
+function findKingSquares(game: Chess, color: "w" | "b"): string[] {
+  const squares: string[] = [];
+  const board = game.board();
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col];
+      if (piece && piece.type === "k" && piece.color === color) {
+        const file = "abcdefgh"[col];
+        const rank = String(8 - row);
+        squares.push(`${file}${rank}`);
+      }
+    }
+  }
+  return squares;
 }
 
 export interface UseGameOptions {
@@ -66,6 +82,10 @@ export function useGame(options?: UseGameOptions) {
   const [pendingPromotionFrom, setPendingPromotionFrom] = useState<string | null>(null);
   const [pendingPromotionTo, setPendingPromotionTo] = useState<string | null>(null);
 
+  const [checkmatedKingSquare, setCheckmatedKingSquare] = useState<string | null>(null);
+
+  const [highlightedSquares, setHighlightedSquares] = useState<Array<{ square: string; className: string }>>([]);
+
   const [playerTimeMs, setPlayerTimeMs] = useState(START_TIME_MS);
   const [aiTimeMs, setAiTimeMs] = useState(START_TIME_MS);
   const [initialTimeMs, setInitialTimeMs] = useState(START_TIME_MS);
@@ -91,6 +111,7 @@ export function useGame(options?: UseGameOptions) {
   const pendingStartRef = useRef<{ minutes: number; incrementMs: number; color: PlayerColor } | null>(null);
   const playerColorRef = useRef<PlayerColor>("white");
   const onGameCreatedRef = useRef(onGameCreated);
+  const endgameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onGameCreatedRef.current = onGameCreated;
   playerColorRef.current = playerColor;
 
@@ -100,18 +121,40 @@ export function useGame(options?: UseGameOptions) {
   const aiTurn = playerColor === "white" ? "b" : "w";
 
   const openEndgame = useCallback((result: string, reason: string) => {
+    if (endgameTimerRef.current) {
+      clearTimeout(endgameTimerRef.current);
+      endgameTimerRef.current = null;
+    }
+    if (result === "1/2-1/2") {
+      const wKings = findKingSquares(chess, "w");
+      const bKings = findKingSquares(chess, "b");
+      setHighlightedSquares(
+        [...wKings, ...bKings].map((s) => ({ square: s, className: "drawn-king" }))
+      );
+    } else if (reason === "checkmate" || chess.isCheckmate()) {
+      playCheckmateSound();
+      const losingColor = chess.turn();
+      const squares = findKingSquares(chess, losingColor);
+      if (squares.length > 0) {
+        setCheckmatedKingSquare(squares[0]);
+        setHighlightedSquares(squares.map((s) => ({ square: s, className: "checkmated" })));
+      }
+    }
     setEndgameResult(result);
     setEndgameReason(reason);
-    setEndgameOpen(true);
     setGameEnded(true);
     setAiThinking(false);
     setGameStarted(false);
-  }, []);
+  }, [chess]);
 
   const closeSocket = useCallback(() => {
     socketControllerRef.current?.close();
     socketControllerRef.current = null;
     wsRef.current = null;
+    if (endgameTimerRef.current) {
+      clearTimeout(endgameTimerRef.current);
+      endgameTimerRef.current = null;
+    }
   }, []);
 
   const syncServerTimes = useCallback((playerMs: number, aiMs: number) => {
@@ -724,6 +767,9 @@ export function useGame(options?: UseGameOptions) {
     setGameStarted(false);
     setPlayerHasMoved(false);
     setGameEnded(false);
+    setEndgameOpen(false);
+    setCheckmatedKingSquare(null);
+    setHighlightedSquares([]);
     setStartOpen(true);
   }, [chess, closeSocket]);
 
@@ -740,12 +786,21 @@ export function useGame(options?: UseGameOptions) {
     setGameEnded(false);
     setAiThinking(false);
     setEndgameOpen(false);
+    setCheckmatedKingSquare(null);
     setStartOpen(true);
   }, [chess, closeSocket]);
 
   useEffect(() => {
     currentGameIdRef.current = gameId;
   }, [gameId]);
+
+  useEffect(() => {
+    return () => {
+      if (endgameTimerRef.current) {
+        clearTimeout(endgameTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (gameId && gameId !== "new") {
@@ -860,6 +915,7 @@ export function useGame(options?: UseGameOptions) {
     VERTICAL,
     playerColor,
     gameEnded,
+    gameStarted,
     startOpen,
     onStartGame,
     promotionOpen,
@@ -883,6 +939,7 @@ export function useGame(options?: UseGameOptions) {
     aiTimeMs,
     initialTimeMs,
     isPlayersTurn,
+    aiThinking,
     handleNewGame,
     isAdmin,
     fenInput,
@@ -891,6 +948,8 @@ export function useGame(options?: UseGameOptions) {
     materialDiff,
     lastMove,
     moveHistory,
+    checkmatedKingSquare,
+    highlightedSquares,
     onLoadFen: () => {
       if (!fenInput.trim()) {
         setErrorMessage("Please enter a FEN string");

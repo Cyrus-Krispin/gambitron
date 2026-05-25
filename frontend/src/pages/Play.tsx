@@ -91,6 +91,39 @@ export default function Play() {
       ? game.capturedPieces.byBlack
       : game.capturedPieces.byWhite;
 
+  const statusText = (() => {
+    if (game.gameEnded) {
+      const playerWins =
+        (game.endgameResult === "1-0" && playerColor === "white") ||
+        (game.endgameResult === "0-1" && playerColor === "black");
+      const isDraw = game.endgameResult === "1/2-1/2";
+      if (isDraw) return "Draw";
+      if (playerWins) return "You win";
+      return "Gambitron wins";
+    }
+    if (game.aiThinking) return "Gambitron thinking\u2026";
+    if (game.isPlayersTurn) return "Your turn";
+    return "Gambitron\u2019s turn";
+  })();
+
+  const statusDetail = (() => {
+    if (!game.gameEnded) return "";
+    if (game.endgameReason === "checkmate") return "by checkmate";
+    if (game.endgameReason === "timeout") return "on time";
+    if (game.endgameResult === "1/2-1/2") return "stalemate or agreement";
+    return "";
+  })();
+
+  const statusColor = (() => {
+    if (!game.gameEnded) return "var(--ink-dim)";
+    const result = game.endgameResult;
+    if (result === "1/2-1/2") return "var(--ink-dim)";
+    const playerWins =
+      (result === "1-0" && playerColor === "white") ||
+      (result === "0-1" && playerColor === "black");
+    return playerWins ? "var(--accent)" : "var(--ink)";
+  })();
+
   return (
     <div className="game fade-in">
       {/* Left: board area */}
@@ -133,6 +166,7 @@ export default function Play() {
             onDragStart={game.onDragStart}
             onDropPiece={game.onDropPiece}
             onDragEnd={game.onDragEnd}
+            highlightedSquares={game.highlightedSquares}
           />
 
           {/* Color picker overlay when startOpen */}
@@ -218,6 +252,58 @@ export default function Play() {
       {/* Right rail */}
       <aside className="rail">
         <section className="card move-list-card">
+          {!game.startOpen && (
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line-soft)" }}>
+              <div
+                style={{
+                  fontFamily: "var(--serif)",
+                  fontSize: 15,
+                  lineHeight: 1.3,
+                  minHeight: "1.3em",
+                  marginBottom: 10,
+                  color: statusColor,
+                  transition: "color 600ms ease",
+                }}
+              >
+                {statusText}
+                {statusDetail && (
+                  <span
+                    style={{
+                      display: "block",
+                      fontFamily: "var(--mono)",
+                      fontSize: 10,
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-faint)",
+                      marginTop: 2,
+                    }}
+                  >
+                    {statusDetail}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={game.gameEnded ? game.handleNewGameFromEndgame : game.handleNewGame}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--mono)",
+                  fontSize: 11,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  padding: "12px 20px",
+                  border: "1px solid",
+                  cursor: "pointer",
+                  background: game.gameEnded ? "var(--ink)" : "var(--bg-card)",
+                  color: game.gameEnded ? "#1a1a1a" : "var(--ink-dim)",
+                  borderColor: game.gameEnded ? "var(--ink)" : "var(--line)",
+                  transition: "background 1000ms ease, color 1000ms ease, border-color 1000ms ease",
+                }}
+              >
+                {game.gameEnded ? "New Game" : "Leave Game"}
+              </button>
+            </div>
+          )}
           <div className="card-head">
             <span className="title">Move list</span>
             <span
@@ -241,11 +327,6 @@ export default function Play() {
         onPromotionClose={game.onPromotionClose}
         onPromotionPick={game.handlePromotionPick}
         playerColor={game.playerColor}
-        endgameOpen={game.endgameOpen}
-        endgameResult={game.endgameResult}
-        endgameReason={game.endgameReason}
-        onEndgameClose={game.onEndgameClose}
-        onNewGameFromEndgame={game.handleNewGameFromEndgame}
         errorOpen={game.errorOpen}
         errorMessage={game.errorMessage}
         onErrorClose={game.onErrorClose}
