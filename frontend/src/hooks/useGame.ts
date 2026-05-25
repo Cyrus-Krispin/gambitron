@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
-import { playMoveSound, playCheckmateSound } from "@/utils/sounds";
+import { playMoveSound, playWinSound, playLossSound } from "@/utils/sounds";
 import {
   createReconnectingSocket,
   sendMessage,
@@ -132,8 +132,12 @@ export function useGame(options?: UseGameOptions) {
         [...wKings, ...bKings].map((s) => ({ square: s, className: "drawn-king" }))
       );
     } else if (reason === "checkmate" || chess.isCheckmate()) {
-      playCheckmateSound();
       const losingColor = chess.turn();
+      const pc = playerColorRef.current;
+      const playerLost =
+        (losingColor === "w" && pc === "white") ||
+        (losingColor === "b" && pc === "black");
+      (playerLost ? playLossSound : playWinSound)();
       const squares = findKingSquares(chess, losingColor);
       if (squares.length > 0) {
         setCheckmatedKingSquare(squares[0]);
