@@ -727,6 +727,9 @@ export function useGame(options?: UseGameOptions) {
         setGameStarted(true);
         setPlayerHasMoved(true);
       }
+      if (chess.isGameOver() && !gameEnded) {
+        openEndgame(computeResult(chess), chess.isCheckmate() ? "checkmate" : "draw");
+      }
       if (callAI && !chess.isGameOver() && !gameEnded && isAdmin && chess.turn() === aiTurn) {
         setAiThinking(true);
         try {
