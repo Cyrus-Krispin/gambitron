@@ -4,3 +4,10 @@ server-key.pem
 
 # PGN game storage
 data/
+.gstack/
+
+# Python virtual environment
+backend/venv/
+
+# Local environment overrides
+frontend/.env.local

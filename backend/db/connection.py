@@ -1,4 +1,6 @@
 """PostgreSQL connection pool."""
+from __future__ import annotations
+
 import asyncpg
 
 from config import DATABASE_URL

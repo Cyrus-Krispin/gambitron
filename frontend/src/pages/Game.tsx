@@ -75,6 +75,7 @@ export default function Game() {
           onDragStart={game.onDragStart}
           onDropPiece={game.onDropPiece}
           onDragEnd={game.onDragEnd}
+          highlightedSquares={game.highlightedSquares}
         />
       </main>
 
@@ -106,11 +107,6 @@ export default function Game() {
         onPromotionClose={game.onPromotionClose}
         onPromotionPick={game.handlePromotionPick}
         playerColor={game.playerColor}
-        endgameOpen={game.endgameOpen}
-        endgameResult={game.endgameResult}
-        endgameReason={game.endgameReason}
-        onEndgameClose={game.onEndgameClose}
-        onNewGameFromEndgame={game.handleNewGameFromEndgame}
         errorOpen={game.errorOpen}
         errorMessage={game.errorMessage}
         onErrorClose={game.onErrorClose}
