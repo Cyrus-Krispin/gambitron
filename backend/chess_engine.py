@@ -13,6 +13,8 @@ from typing import Any
 
 import chess
 
+from opening_book import try_book_move
+
 PIECE_TO_SYMBOL = {
     chess.PAWN: "p",
     chess.KNIGHT: "n",
@@ -1005,6 +1007,18 @@ def select_best_move(
         return None
     if len(legal_moves) == 1:
         return legal_moves[0]
+
+    # Opening book: pick a random book move during the first 4 moves
+    book_move = try_book_move(board_state)
+    if book_move is not None and book_move in legal_moves:
+        board_state.gambitron_last_search = {
+            "depth": 0,
+            "nodes": 0,
+            "score": 0,
+            "tt_entries": 0,
+            "book": True,
+        }
+        return book_move
 
     max_depth = max(1, depth)
     deadline = time.perf_counter() + max(0.01, time_limit)
