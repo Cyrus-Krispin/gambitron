@@ -10,6 +10,7 @@ import chess
 from fastapi import WebSocket
 
 from chess_engine import get_best_move
+from opening_book import reset_book
 from db import games as games_db
 from db import moves as moves_db
 from game_rules import check_3_move_repetition
@@ -160,6 +161,7 @@ async def handle_start_game(ws: WebSocket, data: dict) -> dict | None:
         player_color = "white"
 
     game_id = await games_db.create_game(time_control_ms, player_color, increment_ms)
+    reset_book()
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     timers_module.register_game(game_id, time_control_ms, player_color, fen, increment_ms)
     connection_manager.subscribe(ws, game_id)
