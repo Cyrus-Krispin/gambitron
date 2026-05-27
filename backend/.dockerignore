@@ -13,4 +13,4 @@ __pycache__/
 *.md
 test_*.py
 migrations/
-data/
+data/games/

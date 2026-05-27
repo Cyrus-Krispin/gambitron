@@ -182,21 +182,29 @@ export function createReconnectingSocket(
   let ws: WebSocket | undefined;
   let attempt = 0;
   let closed = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const connect = () => {
     if (closed) return;
+    // Close any existing socket before opening a new one
+    if (ws && ws.readyState !== WebSocket.CLOSED) {
+      ws.close();
+      ws = undefined;
+    }
     ws = createGameSocket(
       onMessage,
       () => {
+        attempt = 0;
         if (wsRef) wsRef.current = ws ?? null;
         onOpen?.();
       },
       () => {
         onClose?.();
-        if (!closed && attempt < MAX_RECONNECT_ATTEMPTS) {
+        if (closed) return;
+        if (attempt < MAX_RECONNECT_ATTEMPTS) {
           attempt++;
           const delay = INITIAL_RECONNECT_DELAY_MS * Math.pow(2, attempt - 1);
-          setTimeout(connect, delay);
+          reconnectTimer = setTimeout(connect, delay);
         }
       },
       onError
@@ -210,12 +218,20 @@ export function createReconnectingSocket(
     getWs: () => ws,
     reconnect: () => {
       attempt = 0;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       if (ws?.readyState !== WebSocket.OPEN) {
         connect();
       }
     },
     close: () => {
       closed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       ws?.close();
       if (wsRef) wsRef.current = null;
     },

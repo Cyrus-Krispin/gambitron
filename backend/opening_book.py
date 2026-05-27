@@ -26,7 +26,8 @@ class OpeningBook:
 
     def __init__(self, games: list[list[str]] | None = None):
         # active_pool is the subset of games matching the current line
-        self._active_pool: list[list[str]] = list(games) if games else []
+        self._all_games: list[list[str]] = list(games) if games else []
+        self._active_pool: list[list[str]] = list(self._all_games)
 
     # ---- query ----
 
