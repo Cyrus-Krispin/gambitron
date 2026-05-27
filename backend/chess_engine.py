@@ -213,7 +213,8 @@ EARLY_QUEEN_MOVE_PENALTY = 22
 EARLY_RIM_KNIGHT_PENALTY = 18
 CASTLING_READY_BONUS = 10
 CASTLED_KING_BONUS = 28
-CENTER_PAWN_OPENING_BONUS = 8
+CENTER_PAWN_OPENING_BONUS = 25
+CENTER_SQUARE_CONTROL_BONUS = 6
 MINOR_STARTING_SQUARES = {
     chess.WHITE: (
         (chess.B1, chess.KNIGHT),
@@ -368,6 +369,14 @@ def _opening_development_score(board_state: chess.Board) -> int:
             piece = board_state.piece_at(square)
             if piece and piece.color == color and piece.piece_type == chess.PAWN:
                 score += sign * CENTER_PAWN_OPENING_BONUS
+
+        center_controlled = 0
+        center_squares = (chess.D4, chess.E4, chess.D5, chess.E5)
+        friendly_pawns = board_state.pieces(chess.PAWN, color)
+        for center_sq in center_squares:
+            if board_state.attackers(color, center_sq) & friendly_pawns:
+                center_controlled += 1
+        score += sign * center_controlled * CENTER_SQUARE_CONTROL_BONUS
 
         if developed < 3:
             for square in board_state.pieces(chess.KNIGHT, color):
