@@ -83,14 +83,14 @@ phase_weights = {
 }
 
 pawn_table = [
-     0,  0,  0,  0,  0,  0,  0,  0,
-     5, 10, 10,-20,-20, 10, 10,  5,
-     5, -5,-10,  0,  0,-10, -5,  5,
-     0,  0,  0, 20, 20,  0,  0,  0,
-     5,  5, 10, 25, 25, 10,  5,  5,
-    10, 10, 20, 30, 30, 20, 10, 10,
-    50, 50, 50, 50, 50, 50, 50, 50,
-     0,  0,  0,  0,  0,  0,  0,  0
+     0,   0,   0,   0,   0,   0,   0,   0,
+     5,  10,  10,   0,   0,  10,  10,   5,
+    10,   5,   0,   5,   5,   0,   5,  10,
+     0,   0,  15,  44,  44,  15,   0,   0,
+     5,  10,  17,  37,  37,  17,  10,   5,
+    18,  22,  32,  47,  47,  32,  22,  18,
+    70,  70,  70,  70,  70,  70,  70,  70,
+     0,   0,   0,   0,   0,   0,   0,   0
 ]
 
 endgame_pawn_table = [
@@ -105,14 +105,14 @@ endgame_pawn_table = [
 ]
 
 knight_table = [
-   -50,-40,-30,-30,-30,-30,-40,-50,
-   -40,-20,  0,  5,  5,  0,-20,-40,
-   -30,  5, 10, 15, 15, 10,  5,-30,
-   -30,  0, 15, 20, 20, 15,  0,-30,
-   -30,  5, 15, 20, 20, 15,  5,-30,
-   -30,  0, 10, 15, 15, 10,  0,-30,
-   -40,-20,  0,  0,  0,  0,-20,-40,
-   -50,-40,-30,-30,-30,-30,-40,-50
+    -25,-20,-15,-15,-15,-15,-20,-25,
+    -20,-10,  0,  5,  5,  0,-10,-20,
+    -15,  5, 10, 15, 15, 10,  5,-15,
+    -15,  0, 15, 20, 20, 15,  0,-15,
+    -15,  5, 15, 20, 20, 15,  5,-15,
+    -15,  0, 10, 15, 15, 10,  0,-15,
+    -20,-10,  0,  0,  0,  0,-10,-20,
+    -25,-20,-15,-15,-15,-15,-20,-25
 ]
 
 bishop_table = [
@@ -207,14 +207,14 @@ MOBILITY_WEIGHTS = {
     chess.QUEEN: 1,
 }
 OPENING_FULLMOVE_LIMIT = 12
-DEVELOPED_MINOR_BONUS = 18
-UNDEVELOPED_MINOR_PENALTY = 10
-EARLY_QUEEN_MOVE_PENALTY = 22
-EARLY_RIM_KNIGHT_PENALTY = 18
-CASTLING_READY_BONUS = 10
-CASTLED_KING_BONUS = 28
-CENTER_PAWN_OPENING_BONUS = 25
-CENTER_SQUARE_CONTROL_BONUS = 6
+DEVELOPED_MINOR_BONUS = 6
+UNDEVELOPED_MINOR_PENALTY = 4
+EARLY_QUEEN_MOVE_PENALTY = 20
+EARLY_RIM_KNIGHT_PENALTY = 14
+CASTLING_READY_BONUS = 12
+CASTLED_KING_BONUS = 32
+CENTER_PAWN_OPENING_BONUS = 28
+CENTER_SQUARE_CONTROL_BONUS = 8
 MINOR_STARTING_SQUARES = {
     chess.WHITE: (
         (chess.B1, chess.KNIGHT),
@@ -368,7 +368,11 @@ def _opening_development_score(board_state: chess.Board) -> int:
         for square in CENTER_PAWN_TARGETS[color]:
             piece = board_state.piece_at(square)
             if piece and piece.color == color and piece.piece_type == chess.PAWN:
-                score += sign * CENTER_PAWN_OPENING_BONUS
+                enemy = not color
+                enemy_pawns = board_state.pieces(chess.PAWN, enemy)
+                pawn_hanging = bool(board_state.attackers(enemy, square) & enemy_pawns)
+                bonus = CENTER_PAWN_OPENING_BONUS // 4 if pawn_hanging else CENTER_PAWN_OPENING_BONUS
+                score += sign * bonus
 
         center_controlled = 0
         center_squares = (chess.D4, chess.E4, chess.D5, chess.E5)
