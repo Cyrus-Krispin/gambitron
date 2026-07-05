@@ -4,22 +4,22 @@ const FLOW = [
   {
     num: "01",
     title: "Start a session",
-    body: "React opens a WebSocket and sends the selected time control and side. FastAPI creates a game record, starts server-owned clocks, and subscribes the socket to that game.",
+    body: "React starts a browser-local game session with the selected time control and side. A local socket shim preserves the real-time flow without a backend service.",
   },
   {
     num: "02",
     title: "Play a move",
-    body: "The board uses chess.js for local move rules and instant feedback. When you move, the client sends the new FEN, SAN, and square data to the backend.",
+    body: "The board uses chess.js for move rules and instant feedback. When you move, the local runtime records the FEN, SAN, and square data in memory.",
   },
   {
     num: "03",
     title: "Let the engine think",
-    body: "FastAPI stores the player move, updates clock state, then runs the minimax engine off the event loop so the WebSocket stays responsive.",
+    body: "The browser updates clock state, then runs the minimax search against a tiny WebAssembly-backed evaluation core.",
   },
   {
     num: "04",
     title: "Reply and remember",
-    body: "The AI move comes back over WebSocket with clock updates. When the game ends, moves are finalized to PGN and saved for the History and Replay pages.",
+    body: "The AI move returns through the local socket API with clock updates. Completed games are saved to Supabase and cached locally for History and Replay.",
   },
 ];
 
@@ -57,7 +57,7 @@ const STEPS = [
   {
     num: "07",
     title: "Minimax engine",
-    body: "Gambitron uses a minimax search with alpha-beta pruning, piece-square tables, and a quiescence search for tactical sharpness. It runs on a FastAPI server via WebSocket.",
+    body: "Gambitron uses a browser-local minimax search with alpha-beta pruning and a WebAssembly material evaluator. No server is needed to play.",
   },
   {
     num: "08",
@@ -68,8 +68,8 @@ const STEPS = [
 
 const CREDITS = [
   { key: "Engine", val: "Minimax · αβ pruning · piece-square tables" },
-  { key: "Transport", val: "WebSocket · FastAPI · EC2" },
-  { key: "Database", val: "PostgreSQL · game history · PGN" },
+  { key: "Runtime", val: "WebAssembly · local socket shim" },
+  { key: "Storage", val: "Supabase · local fallback" },
   { key: "Frontend", val: "React · TypeScript · Vite" },
   { key: "Type", val: "DM Serif Display · Inter · JetBrains Mono" },
 ];
@@ -86,7 +86,7 @@ export default function About() {
           </h2>
           <p className="about-lede">
             Gambitron is a chess engine built from scratch using minimax with alpha-beta pruning,
-            wrapped in a real-time WebSocket server. Pick a tempo, pick a colour, and try to beat it.
+            wrapped in a browser-local WebAssembly runtime. Pick a tempo, pick a colour, and try to beat it.
             No accounts, no ladders — just you, the engine, and the clock.
           </p>
         </div>
@@ -128,16 +128,17 @@ export default function About() {
         <div className="architecture-copy">
           <h3>A small real-time system around a chess engine.</h3>
           <p>
-            Gambitron keeps the board fast in the browser and moves the expensive work to the
-            backend. The client handles interaction and legal-move hints; FastAPI owns game
-            sessions, clocks, AI turns, and persistence.
+            Gambitron keeps the board, clock, and engine in the browser. The
+            client handles interaction and legal-move hints while a local socket-compatible
+            runtime owns game sessions and AI turns. Supabase stores completed games for
+            History and Replay.
           </p>
         </div>
 
         <figure className="architecture-figure">
           <img
             src="/gambitron-architecture.svg"
-            alt="Gambitron architecture diagram showing the React client, FastAPI backend, minimax engine, timers, PostgreSQL, and replay flow"
+            alt="Gambitron architecture diagram"
           />
           <figcaption>
             <span>Editable Draw.io source</span>
