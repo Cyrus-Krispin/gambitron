@@ -1,5 +1,7 @@
 /** WebSocket client for Gambitron game communication. */
 
+import { createLocalGameSocket } from "@/lib/localGameSocket";
+
 export interface StartGamePayload {
   type: "start_game";
   timeControlMs: number;
@@ -124,40 +126,15 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 
 export function getWsUrl(): string {
-  return import.meta.env.VITE_WS_URL;
+  return "wasm://local";
 }
 
 export function createGameSocket(
   onMessage: (msg: ServerMessage) => void,
   onOpen?: () => void,
-  onClose?: () => void,
-  onError?: (err: Event) => void
+  onClose?: () => void
 ): WebSocket {
-  const url = getWsUrl();
-  const ws = new WebSocket(url);
-
-  ws.onopen = () => {
-    onOpen?.();
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data) as ServerMessage;
-      onMessage(msg);
-    } catch {
-      // ignore parse errors
-    }
-  };
-
-  ws.onclose = () => {
-    onClose?.();
-  };
-
-  ws.onerror = (err) => {
-    onError?.(err);
-  };
-
-  return ws;
+  return createLocalGameSocket(onMessage, onOpen, onClose);
 }
 
 export function sendMessage(ws: WebSocket, msg: ClientMessage): void {
@@ -176,7 +153,6 @@ export function createReconnectingSocket(
   onMessage: (msg: ServerMessage) => void,
   onOpen?: () => void,
   onClose?: () => void,
-  onError?: (err: Event) => void,
   wsRef?: { current: WebSocket | null }
 ): ReconnectingSocketController {
   let ws: WebSocket | undefined;
@@ -206,8 +182,7 @@ export function createReconnectingSocket(
           const delay = INITIAL_RECONNECT_DELAY_MS * Math.pow(2, attempt - 1);
           reconnectTimer = setTimeout(connect, delay);
         }
-      },
-      onError
+      }
     );
     if (wsRef) wsRef.current = ws;
   };

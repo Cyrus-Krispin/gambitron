@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { playMoveSound, playWinSound, playLossSound } from "@/utils/sounds";
+import { buildReplayMoves, saveLocalGame } from "@/lib/localHistory";
+import { calculateAIMove } from "@/lib/wasmEngine";
 import {
   createReconnectingSocket,
   sendMessage,
@@ -112,10 +114,9 @@ export function useGame(options?: UseGameOptions) {
   const playerColorRef = useRef<PlayerColor>("white");
   const onGameCreatedRef = useRef(onGameCreated);
   const endgameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedGameIdRef = useRef<string | null>(null);
   onGameCreatedRef.current = onGameCreated;
   playerColorRef.current = playerColor;
-
-  const apiBase = useMemo(() => `${import.meta.env.VITE_backend}`, []);
 
   const playerTurn = playerColor === "white" ? "w" : "b";
   const aiTurn = playerColor === "white" ? "b" : "w";
@@ -171,15 +172,10 @@ export function useGame(options?: UseGameOptions) {
       setAiThinking(true);
       setLastFenForRetry(fen);
       try {
-        const res = await fetch(`${apiBase}?value=${encodeURIComponent(fen)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (!res.ok) throw new Error(`Backend error: ${res.status}`);
-        const data = await res.json();
+        const data = await calculateAIMove(fen);
         if (data.updated_fen) {
           const moveData = data.move || {};
-          setMoveHistory((prev) => [...prev, { captured: data.captured, color: aiTurn, from: moveData.from, to: moveData.to }]);
+          setMoveHistory((prev) => [...prev, { captured: data.captured, color: aiTurn, from: moveData.from, to: moveData.to, san: moveData.san }]);
           chess.load(data.updated_fen);
           setBoardState(chess.board());
           setPlayerHasMoved(true);
@@ -189,13 +185,13 @@ export function useGame(options?: UseGameOptions) {
           openEndgame(data.result, "checkmate");
         }
       } catch (err) {
-        setErrorMessage((err as Error)?.message || "Failed to contact backend");
+        setErrorMessage((err as Error)?.message || "Failed to run local WASM engine");
         setErrorOpen(true);
       } finally {
         setAiThinking(false);
       }
     },
-    [apiBase, chess, openEndgame, aiTurn]
+    [chess, openEndgame, aiTurn]
   );
 
   const sendPlayerMove = useCallback(
@@ -473,6 +469,7 @@ export function useGame(options?: UseGameOptions) {
 
   const startNewGameViaWebSocket = useCallback(
     (minutes: number, color: PlayerColor) => {
+      savedGameIdRef.current = null;
       setPlayerColor(color);
       setStartOpen(false);
       setPlayerHasMoved(false);
@@ -596,7 +593,6 @@ export function useGame(options?: UseGameOptions) {
           }
         },
         undefined,
-        undefined,
         wsRef
       );
       socketControllerRef.current = controller;
@@ -707,7 +703,6 @@ export function useGame(options?: UseGameOptions) {
           sendMessage(wsRef.current!, { type: "subscribe", gameId: gid });
         },
         undefined,
-        undefined,
         wsRef
       );
       socketControllerRef.current = controller;
@@ -737,12 +732,7 @@ export function useGame(options?: UseGameOptions) {
       if (callAI && !chess.isGameOver() && !gameEnded && isAdmin && chess.turn() === aiTurn) {
         setAiThinking(true);
         try {
-          const res = await fetch(`${apiBase}?value=${encodeURIComponent(fen)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) throw new Error(`Backend error: ${res.status}`);
-          const data = await res.json();
+          const data = await calculateAIMove(fen);
           if (data.updated_fen) {
             chess.load(data.updated_fen);
             setBoardState(chess.board());
@@ -752,19 +742,20 @@ export function useGame(options?: UseGameOptions) {
             openEndgame(data.result, "checkmate");
           }
         } catch (err) {
-          setErrorMessage((err as Error)?.message || "Failed to contact backend");
+          setErrorMessage((err as Error)?.message || "Failed to run local WASM engine");
           setErrorOpen(true);
         } finally {
           setAiThinking(false);
         }
       }
     },
-    [chess, isAdmin, gameEnded, apiBase, openEndgame, aiTurn]
+    [chess, isAdmin, gameEnded, openEndgame, aiTurn]
   );
 
   const handleNewGame = useCallback(() => {
     closeSocket();
     currentGameIdRef.current = null;
+    savedGameIdRef.current = null;
     setAiThinking(false);
     setMoveHistory([]);
     chess.reset();
@@ -783,6 +774,7 @@ export function useGame(options?: UseGameOptions) {
   const handleNewGameFromEndgame = useCallback(() => {
     closeSocket();
     currentGameIdRef.current = null;
+    savedGameIdRef.current = null;
     setMoveHistory([]);
     chess.reset();
     setBoardState(chess.board());
@@ -815,6 +807,25 @@ export function useGame(options?: UseGameOptions) {
       return () => closeSocket();
     }
   }, [gameId, connectToExistingGame, initialGameState?.fen, closeSocket]);
+
+  useEffect(() => {
+    if (!gameEnded || !endgameResult || savedGameIdRef.current || moveHistory.length === 0) return;
+    const id = currentGameIdRef.current && currentGameIdRef.current !== "new"
+      ? currentGameIdRef.current
+      : crypto.randomUUID();
+    const moves = buildReplayMoves(moveHistory);
+    if (moves.length === 0) return;
+    void saveLocalGame({
+      id,
+      created_at: new Date().toISOString(),
+      time_control_ms: initialTimeMs,
+      result: endgameResult,
+      termination: endgameReason || null,
+      player_color: playerColor,
+      moves,
+    });
+    savedGameIdRef.current = id;
+  }, [endgameReason, endgameResult, gameEnded, initialTimeMs, moveHistory, playerColor]);
 
   // Auto-start when navigating from Landing with color preselected (e.g. /play/new?minutes=5&color=white)
   useEffect(() => {
@@ -889,6 +900,7 @@ export function useGame(options?: UseGameOptions) {
   const startNewGameWithTimeRest = useCallback(
     async (minutes: number, color: PlayerColor) => {
       const baseMs = minutes * 60 * 1000;
+      savedGameIdRef.current = null;
       setPlayerTimeMs(baseMs);
       setAiTimeMs(baseMs);
       setInitialTimeMs(baseMs);
