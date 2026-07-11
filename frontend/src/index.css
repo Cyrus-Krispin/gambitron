@@ -86,7 +86,7 @@ body {
 }
 
 #root {
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -120,7 +120,7 @@ a {
 }
 
 .app {
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -230,10 +230,10 @@ a {
 
 .lobby {
   flex: 1;
-  min-height: 0;
+  min-height: calc(100vh - 84px);
   display: grid;
   place-items: center;
-  padding: 24px 32px 92px;
+  padding: 24px 32px;
 }
 
 .lobby-panel {
@@ -648,11 +648,6 @@ body.hide-coords .square .coord {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-.piece img[src*="-black"],
-.cap-piece img[src*="-black"] {
-  filter: invert(78%) sepia(24%) saturate(782%) hue-rotate(224deg) brightness(92%);
 }
 
 .piece img[src*="-white"],
@@ -1160,7 +1155,8 @@ body.hide-coords .square .coord {
   }
 
   .lobby {
-    padding: 24px 20px 72px;
+    min-height: calc(100vh - 72px);
+    padding: 24px 20px;
   }
 
   .lobby-panel {
