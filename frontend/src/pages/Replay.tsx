@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Chess } from "chess.js";
 import { ChessBoard } from "@/components/ChessBoard";
+import { getSavedGame, type LocalGameRecord } from "@/lib/localHistory";
 
 const HORIZONTAL = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const VERTICAL_WHITE = ["8", "7", "6", "5", "4", "3", "2", "1"];
@@ -40,36 +41,34 @@ function buildMovePairs(moves: MoveInfo[]) {
 
 export default function Replay() {
   const { gameId } = useParams<{ gameId: string }>();
-  const [game, setGame] = useState<{ player_color: string; result?: string } | null>(null);
+  const [game, setGame] = useState<LocalGameRecord | null>(null);
   const [moves, setMoves] = useState<MoveInfo[]>([]);
   const [currentPly, setCurrentPly] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const apiBase = `${import.meta.env.VITE_backend}`;
-
   useEffect(() => {
     if (!gameId) return;
-    let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([
-      fetch(`${apiBase}/games/${gameId}`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`${apiBase}/games/${gameId}/moves`).then((r) => (r.ok ? r.json() : null)),
-    ])
-      .then(([g, m]) => {
-        if (cancelled) return;
-        if (!g || !m?.moves?.length) { setError("Game not found or has no moves"); return; }
-        setGame(g);
-        setMoves(m.moves);
+    let cancelled = false;
+    getSavedGame(gameId).then((savedGame) => {
+      if (cancelled) return;
+      if (!savedGame || savedGame.moves.length === 0) {
+        setError("Game not found or has no moves");
+        setMoves([]);
+        setGame(null);
+      } else {
+        setGame(savedGame);
+        setMoves(savedGame.moves);
         setCurrentPly(0);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [apiBase, gameId]);
+      }
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId]);
 
   const startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   const currentFen = currentPly === 0 ? startFen : (moves.find((m) => m.ply === currentPly)?.fen ?? startFen);

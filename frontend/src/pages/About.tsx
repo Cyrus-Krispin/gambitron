@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 
 const FACTS = [
   { key: "Engine", val: "Minimax + alpha beta" },
+  { key: "Runtime", val: "WebAssembly + local socket" },
   { key: "Board", val: "React + chess.js" },
-  { key: "Server", val: "FastAPI + WebSocket" },
-  { key: "Archive", val: "PGN history" },
+  { key: "Archive", val: "Supabase + local fallback" },
 ];
 
 const LINKS = [

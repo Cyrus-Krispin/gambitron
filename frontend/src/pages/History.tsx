@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { listSavedGames } from "@/lib/localHistory";
 
 interface GameSummary {
   id: string;
@@ -49,30 +50,22 @@ function resultLabel(result: string | null, playerColor: string): string {
 export default function History() {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const apiBase = `${import.meta.env.VITE_backend}`;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
-    fetch(`${apiBase}/games?has_pgn=true&limit=50&offset=0`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (!cancelled) setGames(data.games ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load games");
+    listSavedGames()
+      .then((savedGames) => {
+        if (!cancelled) setGames(savedGames);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
-  }, [apiBase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="history fade-in">
@@ -89,24 +82,11 @@ export default function History() {
             padding: "32px 0",
           }}
         >
-          Loading…
+          Loading...
         </div>
       )}
 
-      {error && (
-        <div
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 12,
-            color: "var(--accent)",
-            padding: "20px 0",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && games.length === 0 && (
+      {!loading && games.length === 0 && (
         <div
           style={{
             fontFamily: "var(--mono)",
@@ -120,7 +100,7 @@ export default function History() {
         </div>
       )}
 
-      {!loading && !error && games.length > 0 && (
+      {!loading && games.length > 0 && (
         <div className="history-table">
           {games.map((g, i) => {
             const rc = resultClass(g.result, g.player_color);

@@ -6,12 +6,11 @@
 
 [![Play vs Gambitron](https://img.shields.io/badge/PLAY_VS_GAMBITRON-000?style=for-the-badge&labelColor=FFF&color=000)](https://gambitron.vercel.app)
 
-**Chess AI built with React, FastAPI, and WebSockets**
+**Chess AI built with React, TypeScript, and WebAssembly**
 
 [![React](https://img.shields.io/badge/React_18-blue?logo=react&logoColor=white)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript_5-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Python](https://img.shields.io/badge/Python_3-green?logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-teal?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)](https://webassembly.org/)
 
 </div>
 
@@ -19,34 +18,59 @@
 
 ## Features
 
-- Play as White or Black against a minimax AI (depth 3, α/β pruning)
-- Server-authoritative clocks with configurable time controls
-- Full game history and move-by-move replay via PGN
-- Reconnection support — drop and rejoin mid-game
+- Play as White or Black against a browser-local minimax AI
+- WebAssembly-backed material evaluation with alpha-beta pruning
+- Configurable time controls with local clock ownership
+- Supabase-backed game history and move-by-move replay, with localStorage fallback
 
 ## How It Works
 
 ![Gambitron Architecture](frontend/public/gambitron-architecture.svg)
 
-The browser handles the board UI, legal-move hints, and replay controls. Live games run through a persistent WebSocket to FastAPI, which owns game sessions, server-side clocks, AI turns, and endgame detection.
+The browser handles the board UI, legal-move hints, clocks, AI turns, and replay controls. Live games run through a local socket-compatible runtime, so there is no backend server, EC2 instance, Docker image, or network WebSocket to run.
 
-FastAPI runs the minimax engine off the event loop, broadcasts `ai_move` and `time_update` messages, and finalizes completed games to PGN. PostgreSQL stores finished games so `GET /games` and `GET /games/:id/moves` can power the History and Replay pages.
+The engine uses `chess.js` for legal move generation and a small embedded WebAssembly module for hot-path material scoring. Completed games are written from the frontend to Supabase tables and cached in `localStorage` as an offline fallback.
 
-**AI evaluation factors:** material values, piece-square tables, center control, pawn advancement, bishop pair bonus, rook mobility, king safety.
+**AI evaluation factors:** WASM-scored material, legal mobility, capture ordering, promotions, checks, and mate detection.
 
 Editable diagram source: [frontend/public/gambitron-architecture.drawio](frontend/public/gambitron-architecture.drawio)
 
 ## Quick Start
 
 ```bash
-# Frontend
 cd frontend && npm install && npm run dev
-
-# Backend
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-fastapi dev main.py
 ```
+
+## Supabase
+
+Run `frontend/supabase/schema.sql` in the Supabase SQL Editor, then set these frontend environment variables:
+
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+No server-side Supabase secret is used. The browser writes completed games with the anon key under the row-level security policies in `frontend/supabase/schema.sql`.
+
+## Engine Strength Gate
+
+The browser engine is checked against a Git baseline before it ships. The gate
+compares tactical positions and paired, color-reversed self-play at an equal
+deterministic node budget; its wall-clock limit is intentionally generous so
+slower CI machines do not alter the result:
+
+```bash
+cd frontend
+npm run test:engine
+```
+
+To compare a committed candidate against its parent revision, run:
+
+```bash
+ENGINE_BASELINE=HEAD^ npm run test:engine
+```
+
+Pull requests run the same comparison automatically against their base branch.
 
 ## License
 
