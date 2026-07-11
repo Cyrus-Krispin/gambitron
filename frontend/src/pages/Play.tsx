@@ -179,7 +179,7 @@ export default function Play() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "oklch(0.985 0.002 120 / 0.88)",
+                background: "oklch(0.105 0.014 285 / 0.86)",
                 backdropFilter: "blur(8px)",
                 gap: 16,
               }}
