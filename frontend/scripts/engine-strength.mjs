@@ -9,7 +9,9 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const repositoryRoot = path.resolve(frontendRoot, "..");
 const enginePath = path.join(frontendRoot, "src/lib/wasmEngine.ts");
 const baselineRef = process.env.ENGINE_BASELINE ?? "HEAD";
-const timeLimitMs = Number(process.env.ENGINE_TIME_LIMIT_MS ?? 120);
+// The node limit is the benchmark's stopping condition. The wall-clock limit
+// is deliberately generous so slower CI runners do not change the result.
+const timeLimitMs = Number(process.env.ENGINE_TIME_LIMIT_MS ?? 30_000);
 const nodeLimit = Number(process.env.ENGINE_NODE_LIMIT ?? 768);
 
 const tacticalPositions = [
