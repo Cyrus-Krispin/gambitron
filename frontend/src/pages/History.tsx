@@ -76,14 +76,14 @@ export default function History() {
 
   return (
     <div className="history fade-in">
-      <h2>Recent games.</h2>
+      <h2>History</h2>
 
       {loading && (
         <div
           style={{
             fontFamily: "var(--mono)",
             fontSize: 11,
-            letterSpacing: "0.14em",
+            letterSpacing: "0",
             color: "var(--ink-faint)",
             textTransform: "uppercase",
             padding: "32px 0",
@@ -112,11 +112,11 @@ export default function History() {
             fontFamily: "var(--mono)",
             fontSize: 12,
             color: "var(--ink-faint)",
-            letterSpacing: "0.1em",
+            letterSpacing: "0",
             padding: "32px 0",
           }}
         >
-          No games yet. <Link to="/" style={{ color: "var(--accent)" }}>Play one →</Link>
+          Empty. <Link to="/" style={{ color: "var(--accent)" }}>Play</Link>
         </div>
       )}
 
@@ -140,7 +140,7 @@ export default function History() {
                 <span className="when">{formatDate(g.created_at)}</span>
                 <span className="mode">{formatTimeControl(g.time_control_ms)}</span>
                 <span className={`result-tag ${rc}`}>{rl}</span>
-                <span className="chev">→</span>
+                <span className="chev">›</span>
               </Link>
             );
           })}

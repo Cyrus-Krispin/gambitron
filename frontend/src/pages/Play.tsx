@@ -179,8 +179,8 @@ export default function Play() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "oklch(0.18 0.008 60 / 0.85)",
-                backdropFilter: "blur(2px)",
+                background: "oklch(0.985 0.002 120 / 0.88)",
+                backdropFilter: "blur(8px)",
                 gap: 16,
               }}
             >
@@ -188,7 +188,7 @@ export default function Play() {
                 style={{
                   fontFamily: "var(--mono)",
                   fontSize: 10,
-                  letterSpacing: "0.18em",
+                  letterSpacing: "0",
                   textTransform: "uppercase",
                   color: "var(--ink-faint)",
                   marginBottom: 8,
@@ -203,11 +203,11 @@ export default function Play() {
                     type="button"
                     onClick={() => game.onStartGame(c)}
                     style={{
-                      background: "var(--bg-card)",
+                      background: "var(--surface)",
                       padding: "18px 28px",
                       fontFamily: "var(--mono)",
                       fontSize: 11,
-                      letterSpacing: "0.14em",
+                      letterSpacing: "0",
                       textTransform: "uppercase",
                       color: "var(--ink-dim)",
                       border: "none",
@@ -272,7 +272,7 @@ export default function Play() {
                       display: "block",
                       fontFamily: "var(--mono)",
                       fontSize: 10,
-                      letterSpacing: "0.14em",
+                      letterSpacing: "0",
                       textTransform: "uppercase",
                       color: "var(--ink-faint)",
                       marginTop: 2,
@@ -289,14 +289,14 @@ export default function Play() {
                   width: "100%",
                   fontFamily: "var(--mono)",
                   fontSize: 11,
-                  letterSpacing: "0.14em",
+                  letterSpacing: "0",
                   textTransform: "uppercase",
                   padding: "12px 20px",
                   border: "1px solid",
                   cursor: "pointer",
-                  background: game.gameEnded ? "var(--ink)" : "var(--bg-card)",
-                  color: game.gameEnded ? "#1a1a1a" : "var(--ink-dim)",
-                  borderColor: game.gameEnded ? "var(--ink)" : "var(--line)",
+                  background: game.gameEnded ? "var(--accent)" : "var(--surface)",
+                  color: game.gameEnded ? "var(--surface)" : "var(--ink-dim)",
+                  borderColor: game.gameEnded ? "var(--accent)" : "var(--line)",
                   transition: "background 1000ms ease, color 1000ms ease, border-color 1000ms ease",
                 }}
               >

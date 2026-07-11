@@ -12,7 +12,7 @@ export function Layout(props: { children: React.ReactNode }) {
     <div className="app">
       <header className="topbar">
         <Link to="/" className="brand">
-          Gambitron<span className="dot">.</span>
+          Gambitron
         </Link>
         <nav>
           <Link to="/" className={"tab" + (isPlay ? " active" : "")}>Play</Link>

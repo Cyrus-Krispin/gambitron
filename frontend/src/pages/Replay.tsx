@@ -113,7 +113,7 @@ export default function Replay() {
           justifyContent: "center",
           fontFamily: "var(--mono)",
           fontSize: 11,
-          letterSpacing: "0.14em",
+          letterSpacing: "0",
           color: "var(--ink-faint)",
           textTransform: "uppercase",
         }}
@@ -226,7 +226,7 @@ export default function Replay() {
                 fontFamily: "var(--mono)",
                 fontSize: 11,
                 color: "var(--ink-faint)",
-                letterSpacing: "0.06em",
+                letterSpacing: "0",
               }}
             >
               Use ← → to step. Esc to exit.
