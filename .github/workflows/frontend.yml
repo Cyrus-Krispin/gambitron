@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -34,6 +36,20 @@ jobs:
       - name: Verify local WASM game runtime
         working-directory: frontend
         run: npm run test:local-game
+
+      - name: Compare WASM engine with pull request base
+        if: github.event_name == 'pull_request'
+        working-directory: frontend
+        env:
+          ENGINE_BASELINE: origin/${{ github.base_ref }}
+        run: npm run test:engine
+
+      - name: Compare WASM engine with previous revision
+        if: github.event_name != 'pull_request'
+        working-directory: frontend
+        env:
+          ENGINE_BASELINE: HEAD^
+        run: npm run test:engine
 
       - name: Lint
         working-directory: frontend

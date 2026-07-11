@@ -52,6 +52,25 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 No server-side Supabase secret is used. The browser writes completed games with the anon key under the row-level security policies in `frontend/supabase/schema.sql`.
 
+## Engine Strength Gate
+
+The browser engine is checked against a Git baseline before it ships. The gate
+compares tactical positions and paired, color-reversed self-play at an equal
+search-time budget:
+
+```bash
+cd frontend
+npm run test:engine
+```
+
+To compare a committed candidate against its parent revision, run:
+
+```bash
+ENGINE_BASELINE=HEAD^ npm run test:engine
+```
+
+Pull requests run the same comparison automatically against their base branch.
+
 ## License
 
 MIT
