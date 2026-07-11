@@ -26,6 +26,7 @@ export interface LocalAIMoveResult {
 export interface EngineOptions {
   maxDepth?: number;
   timeLimitMs?: number;
+  nodeLimit?: number;
 }
 
 type WasmEngineExports = {
@@ -43,6 +44,7 @@ type TranspositionEntry = {
 
 type SearchContext = {
   deadline: number;
+  nodeLimit?: number;
   startedAt: number;
   nodes: number;
   completedDepth: number;
@@ -163,6 +165,7 @@ function evaluate(game: Chess, wasm: WasmEngineExports): number {
 
 function checkTime(ctx: SearchContext): void {
   ctx.nodes += 1;
+  if (ctx.nodeLimit !== undefined && ctx.nodes >= ctx.nodeLimit) throw new SearchTimeout();
   if ((ctx.nodes === 1 || ctx.nodes % TIME_CHECK_INTERVAL === 0) && performance.now() >= ctx.deadline) {
     throw new SearchTimeout();
   }
@@ -380,6 +383,7 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const ctx: SearchContext = {
     startedAt,
     deadline: startedAt + Math.max(10, options.timeLimitMs ?? MAX_SEARCH_MS),
+    nodeLimit: options.nodeLimit,
     nodes: 0,
     completedDepth: 0,
     timedOut: false,

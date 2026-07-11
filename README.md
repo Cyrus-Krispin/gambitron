@@ -56,7 +56,7 @@ No server-side Supabase secret is used. The browser writes completed games with 
 
 The browser engine is checked against a Git baseline before it ships. The gate
 compares tactical positions and paired, color-reversed self-play at an equal
-search-time budget:
+deterministic node budget:
 
 ```bash
 cd frontend

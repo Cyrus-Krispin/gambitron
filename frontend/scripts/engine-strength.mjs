@@ -10,6 +10,7 @@ const repositoryRoot = path.resolve(frontendRoot, "..");
 const enginePath = path.join(frontendRoot, "src/lib/wasmEngine.ts");
 const baselineRef = process.env.ENGINE_BASELINE ?? "HEAD";
 const timeLimitMs = Number(process.env.ENGINE_TIME_LIMIT_MS ?? 120);
+const nodeLimit = Number(process.env.ENGINE_NODE_LIMIT ?? 768);
 
 const tacticalPositions = [
   { name: "mate in one", fen: "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1", sans: ["Qf8#", "Qe8#"] },
@@ -47,11 +48,17 @@ function baselineSource() {
     ["show", `${baselineRef}:frontend/src/lib/wasmEngine.ts`],
     { cwd: repositoryRoot, encoding: "utf8" },
   );
-  return source.replace("const MAX_SEARCH_MS = 450;", `const MAX_SEARCH_MS = ${timeLimitMs};`);
+  return source
+    .replace("const MAX_SEARCH_MS = 450;", `const MAX_SEARCH_MS = ${timeLimitMs};\nlet pipelineNodes = 0;`)
+    .replace(
+      "if (performance.now() >= deadline || depth === 0 || game.isGameOver()) {",
+      `if (++pipelineNodes >= ${nodeLimit} || depth === 0 || game.isGameOver()) {`,
+    )
+    .replace("  const game = new Chess(fen);", "  pipelineNodes = 0;\n  const game = new Chess(fen);");
 }
 
 async function choose(engine, fen) {
-  return engine.calculateAIMove(fen, { maxDepth: 7, timeLimitMs });
+  return engine.calculateAIMove(fen, { maxDepth: 7, timeLimitMs, nodeLimit });
 }
 
 async function playGame(white, black, fen) {
