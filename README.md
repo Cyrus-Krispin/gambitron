@@ -1,77 +1,43 @@
 # Gambitron
 
-<div align="center">
+![Gambitron chess game](frontend/public/readme/gambitron-hero.png)
 
-![Gambitron Demo](frontend/public/readme/readme-gif-gambitron.gif)
+Gambitron is a browser-based chess game built around a home-grown chess opponent. Choose a time control and a side, play against the engine, and revisit completed games move by move. The game runs entirely in the browser—there is no game server to operate.
 
-[![Play vs Gambitron](https://img.shields.io/badge/PLAY_VS_GAMBITRON-000?style=for-the-badge&labelColor=FFF&color=000)](https://gambitron.vercel.app)
+[Play Gambitron](https://gambitron.vercel.app)
 
-**Chess AI built with React, TypeScript, and WebAssembly**
+## What it does
 
-[![React](https://img.shields.io/badge/React_18-blue?logo=react&logoColor=white)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript_5-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)](https://webassembly.org/)
+- Lets players face Gambitron as White, Black, or a random side across bullet, blitz, rapid, and classical time controls.
+- Validates moves, shows legal destinations, tracks captures, and runs each player's clock locally.
+- Plays the engine's reply in the same browser session.
+- Saves completed games for the History and Replay views, including each position and move.
 
-</div>
+## How it is built
 
----
+Gambitron is a React and TypeScript single-page application built with Vite. The board, controls, routing, clocks, and replay interface all live in the frontend.
 
-## Features
+`chess.js` supplies legal move generation and game-state rules. A local socket-compatible runtime coordinates game sessions, clock updates, and engine turns without a network WebSocket or backend service.
 
-- Play as White or Black against a browser-local minimax AI
-- WebAssembly-backed material evaluation with alpha-beta pruning
-- Configurable time controls with local clock ownership
-- Supabase-backed game history and move-by-move replay, with localStorage fallback
+The opponent uses a browser-local minimax search with alpha-beta pruning. It orders forcing moves such as captures, promotions, and checks, then evaluates positions using material scores calculated by a compact embedded WebAssembly module.
 
-## How It Works
+Completed games are stored in Supabase when it is configured and are also retained in `localStorage` as an offline fallback. This keeps history and replay available without requiring an account or a dedicated application server.
 
-![Gambitron Architecture](frontend/public/gambitron-architecture.svg)
+## Architecture
 
-The browser handles the board UI, legal-move hints, clocks, AI turns, and replay controls. Live games run through a local socket-compatible runtime, so there is no backend server, EC2 instance, Docker image, or network WebSocket to run.
+![Gambitron architecture](frontend/public/gambitron-architecture.svg)
 
-The engine uses `chess.js` for legal move generation and a small embedded WebAssembly module for hot-path material scoring. Completed games are written from the frontend to Supabase tables and cached in `localStorage` as an offline fallback.
+```text
+React interface
+  ├─ Board, clocks, move feedback, history, replay
+  ├─ chess.js: legal moves and game state
+  └─ Local game runtime
+       ├─ Minimax + alpha-beta engine
+       └─ WebAssembly material evaluation
 
-**AI evaluation factors:** WASM-scored material, legal mobility, capture ordering, promotions, checks, and mate detection.
-
-Editable diagram source: [frontend/public/gambitron-architecture.drawio](frontend/public/gambitron-architecture.drawio)
-
-## Quick Start
-
-```bash
-cd frontend && npm install && npm run dev
+Game history
+  ├─ Supabase, when configured
+  └─ localStorage fallback
 ```
 
-## Supabase
-
-Run `frontend/supabase/schema.sql` in the Supabase SQL Editor, then set these frontend environment variables:
-
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-No server-side Supabase secret is used. The browser writes completed games with the anon key under the row-level security policies in `frontend/supabase/schema.sql`.
-
-## Engine Strength Gate
-
-The browser engine is checked against a Git baseline before it ships. The gate
-compares tactical positions and paired, color-reversed self-play at an equal
-deterministic node budget; its wall-clock limit is intentionally generous so
-slower CI machines do not alter the result:
-
-```bash
-cd frontend
-npm run test:engine
-```
-
-To compare a committed candidate against its parent revision, run:
-
-```bash
-ENGINE_BASELINE=HEAD^ npm run test:engine
-```
-
-Pull requests run the same comparison automatically against their base branch.
-
-## License
-
-MIT
+The editable architecture diagram is available at [frontend/public/gambitron-architecture.drawio](frontend/public/gambitron-architecture.drawio).

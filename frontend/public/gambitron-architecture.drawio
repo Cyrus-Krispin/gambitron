@@ -1,64 +1,25 @@
-<mxfile host="app.diagrams.net" modified="2026-05-16T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+<mxfile host="app.diagrams.net" modified="2026-07-12T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
   <diagram id="gambitron-architecture" name="Gambitron Architecture">
     <mxGraphModel dx="1120" dy="660" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1120" pageHeight="660" math="0" shadow="0">
       <root>
-        <mxCell id="0"/>
-        <mxCell id="1" parent="0"/>
-        <mxCell id="title" value="Gambitron architecture&lt;br&gt;&lt;font style=&quot;font-size: 18px;&quot;&gt;One real-time game loop, one durable record.&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=none;fillColor=none;fontColor=#f1ece4;align=left;verticalAlign=top;fontStyle=1;fontSize=24;" vertex="1" parent="1">
-          <mxGeometry x="56" y="40" width="760" height="80" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="client-group" value="Client&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;React · TypeScript · Vercel&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="56" y="162" width="300" height="300" as="geometry"/>
-        </mxCell>
-        <mxCell id="client-ui" value="Board, clocks, dialogs&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;routes: play · history · replay&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="80" y="256" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="client-chess" value="chess.js move handling&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;legal squares · FEN · SAN&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="80" y="328" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="client-ws" value="WebSocket + REST clients" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="80" y="400" width="252" height="38" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="backend-group" value="Backend&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;FastAPI · EC2&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="410" y="162" width="300" height="300" as="geometry"/>
-        </mxCell>
-        <mxCell id="backend-ws" value="/ws game session&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;start · move · subscribe&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="434" y="256" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="backend-timer" value="Timer loop&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;100 ms tick · timeouts&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="434" y="328" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="backend-engine" value="Minimax engine thread" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="434" y="400" width="252" height="38" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="data-group" value="Data &amp; replay&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;PostgreSQL · PGN&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="764" y="162" width="300" height="300" as="geometry"/>
-        </mxCell>
-        <mxCell id="data-games" value="games table&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;id · result · time control&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="788" y="256" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="data-pgn" value="PGN finalization&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;written when a game ends&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="788" y="328" width="252" height="54" as="geometry"/>
-        </mxCell>
-        <mxCell id="data-rest" value="REST history endpoints" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1">
-          <mxGeometry x="788" y="400" width="252" height="38" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="edge-ws" value="WebSocket /ws" style="endArrow=block;html=1;rounded=0;strokeColor=#d69b55;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="client-ws" target="backend-ws">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="edge-persist" value="persist" style="endArrow=block;html=1;rounded=0;strokeColor=#d69b55;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="backend-engine" target="data-pgn">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="edge-rest" value="GET /games · GET /games/:id/moves" style="endArrow=block;html=1;rounded=0;strokeColor=#7d6f60;dashed=1;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="data-rest" target="client-ui">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="edge-updates" value="ai_move · time_update" style="endArrow=block;html=1;rounded=0;strokeColor=#7d6f60;dashed=1;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="backend-timer" target="client-ui">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Gambitron architecture&lt;br&gt;&lt;font style=&quot;font-size: 18px;&quot;&gt;A complete game loop in the browser.&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=none;fillColor=none;fontColor=#f1ece4;align=left;verticalAlign=top;fontStyle=1;fontSize=24;" vertex="1" parent="1"><mxGeometry x="56" y="40" width="760" height="80" as="geometry"/></mxCell>
+        <mxCell id="client" value="React client&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;TypeScript · Vite · Vercel&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="56" y="162" width="300" height="300" as="geometry"/></mxCell>
+        <mxCell id="ui" value="Board and game controls&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;moves · clocks · captures&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="80" y="256" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="history" value="History and replay&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;positions · notation · playback&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="80" y="328" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="socket" value="Local socket-compatible API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="80" y="400" width="252" height="38" as="geometry"/></mxCell>
+        <mxCell id="runtime" value="Local game runtime&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;in-memory browser session&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="410" y="162" width="300" height="300" as="geometry"/></mxCell>
+        <mxCell id="rules" value="chess.js game state&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;legal moves · FEN · SAN&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="434" y="256" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="turns" value="Clock and turn orchestration&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;time controls · AI replies&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="434" y="328" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="events" value="Session messages and events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="434" y="400" width="252" height="38" as="geometry"/></mxCell>
+        <mxCell id="engine" value="Engine and storage&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;browser compute · optional persistence&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#29251f;strokeColor=#544c42;fontColor=#f1ece4;align=left;verticalAlign=top;spacing=24;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="764" y="162" width="300" height="300" as="geometry"/></mxCell>
+        <mxCell id="minimax" value="Minimax search&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;alpha-beta · move ordering&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="788" y="256" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="wasm" value="WebAssembly evaluation&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;material scoring&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="788" y="328" width="252" height="54" as="geometry"/></mxCell>
+        <mxCell id="storage" value="Supabase or localStorage history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#211f1b;strokeColor=#62594d;fontColor=#f1ece4;align=left;spacing=14;" vertex="1" parent="1"><mxGeometry x="788" y="400" width="252" height="38" as="geometry"/></mxCell>
+        <mxCell id="edge-client-runtime" value="messages" style="endArrow=block;html=1;rounded=0;strokeColor=#d69b55;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="socket" target="rules"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="edge-runtime-engine" value="AI turn" style="endArrow=block;html=1;rounded=0;strokeColor=#d69b55;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="turns" target="minimax"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="edge-save" value="completed game" style="endArrow=block;html=1;rounded=0;strokeColor=#7d6f60;dashed=1;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="events" target="storage"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="edge-replay" value="saved history and replay" style="endArrow=block;html=1;rounded=0;strokeColor=#7d6f60;dashed=1;fontColor=#9b9184;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="storage" target="history"><mxGeometry relative="1" as="geometry"/></mxCell>
       </root>
     </mxGraphModel>
   </diagram>
