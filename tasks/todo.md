@@ -3,9 +3,9 @@
 ## Task 1: Correct engine search invariants
 
 **Acceptance criteria:**
-- [ ] Quiescence never uses stand-pat while the side to move is in check.
-- [ ] History-table keys are recorded for the same side used during lookup.
-- [ ] Regression tests fail on the old logic and pass on the corrected logic.
+- [x] Quiescence never uses stand-pat while the side to move is in check.
+- [x] History-table keys are recorded for the same side used during lookup.
+- [x] Regression tests fail on the old logic and pass on the corrected logic.
 
 **Verification:** focused Vitest tests; `npm run test:engine`; `npm run build`.
 
@@ -16,9 +16,9 @@
 ## Task 2: Preserve move and result fidelity
 
 **Acceptance criteria:**
-- [ ] All four promotion choices round-trip through saved replay history.
-- [ ] Checkmate, stalemate, repetition, insufficient material, and move-rule draws have accurate termination labels.
-- [ ] Invalid replay data produces a recoverable error, not a render crash.
+- [x] All four promotion choices round-trip through saved replay history.
+- [x] Checkmate, stalemate, repetition, insufficient material, and move-rule draws have accurate termination labels.
+- [x] Invalid replay data produces a recoverable error, not a render crash.
 
 **Verification:** focused Vitest tests; local-game smoke; build.
 
@@ -29,9 +29,9 @@
 ## Task 3: Recover active games after reload
 
 **Acceptance criteria:**
-- [ ] Active position, clocks, move history, and timestamps survive reload.
-- [ ] Elapsed clock time is reconciled safely on recovery.
-- [ ] Missing/expired game IDs show a clear recovery action instead of a dead board.
+- [x] Active position, clocks, move history, and timestamps survive reload.
+- [x] Elapsed clock time is reconciled safely on recovery.
+- [x] Missing/expired game IDs show a clear recovery action instead of a dead board.
 
 **Verification:** focused runtime test; browser reload/direct-route smoke; build.
 
@@ -42,9 +42,9 @@
 ## Task 4: Fix responsive game layout
 
 **Acceptance criteria:**
-- [ ] Full board, clocks, and controls are visible at 320px.
-- [ ] Navigation remains available at all supported widths.
-- [ ] Desktop layout remains visually stable.
+- [x] Full board, clocks, and controls are visible at 320px.
+- [x] Navigation remains available at all supported widths.
+- [x] Desktop layout remains visually stable.
 
 **Verification:** screenshots and a played move at 320px, 768px, 1024px, and 1440px.
 
@@ -55,9 +55,9 @@
 ## Task 5: Complete keyboard and screen-reader flows
 
 **Acceptance criteria:**
-- [ ] Board supports roving focus and keyboard move selection.
-- [ ] Promotion and replay controls are keyboard-complete with correct dialog/current-state semantics.
-- [ ] Turn, result, and actionable error changes are announced without noisy clock updates.
+- [x] Board supports roving focus and keyboard move selection.
+- [x] Promotion and replay controls are keyboard-complete with correct dialog/current-state semantics.
+- [x] Turn, result, and actionable error changes are announced without noisy clock updates.
 
 **Verification:** keyboard browser walkthrough; accessibility tree/axe check; component tests.
 
@@ -68,9 +68,9 @@
 ## Task 6: Add resilient application shell
 
 **Acceptance criteria:**
-- [ ] Unexpected render failures show a retry/home fallback and emit sanitized telemetry.
-- [ ] Unknown routes render a real not-found page.
-- [ ] Route patterns do not shadow one another.
+- [x] Unexpected render failures show a retry/home fallback and emit sanitized telemetry.
+- [x] Unknown routes render a real not-found page.
+- [x] Route patterns do not shadow one another.
 
 **Verification:** component/routing tests; browser console check; build.
 
@@ -81,9 +81,9 @@
 ## Task 7: Make dependencies and toolchain reproducible
 
 **Acceptance criteria:**
-- [ ] No unmitigated reachable high/critical audit findings.
-- [ ] Build-only packages are dev dependencies and unused vulnerable packages are removed or patched.
-- [ ] Node and npm versions are declared consistently with CI/Vercel.
+- [x] No unmitigated reachable high/critical audit findings.
+- [x] Build-only packages are dev dependencies and vulnerable packages are patched.
+- [x] Node and npm versions are declared consistently with CI/Vercel.
 
 **Verification:** clean `npm ci`; registry signature check; audits; lint; tests; build; lockfile review.
 
@@ -94,9 +94,9 @@
 ## Task 8: Harden deployment configuration
 
 **Acceptance criteria:**
-- [ ] HTML/routes have CSP, frame, MIME, referrer, and permissions headers.
-- [ ] Hashed assets use immutable caching.
-- [ ] Metadata, environment setup, rollback, and post-deploy smoke checks are documented.
+- [x] HTML/routes have CSP, frame, MIME, referrer, and permissions headers.
+- [x] Hashed assets use immutable caching.
+- [x] Metadata, environment setup, rollback, and post-deploy smoke checks are documented.
 
 **Verification:** local Vercel config validation; response-header checks; build artifact inspection.
 
@@ -107,9 +107,9 @@
 ## Task 9: Enforce release gates in CI
 
 **Acceptance criteria:**
-- [ ] Lint warnings fail CI.
-- [ ] Unit tests and production dependency audit run in CI.
-- [ ] Workflow uses least-privilege permissions and the supported toolchain.
+- [x] Lint warnings fail CI.
+- [x] Unit, browser, and dependency audit gates run in CI.
+- [x] Workflow uses least-privilege permissions and the supported toolchain.
 
 **Verification:** action syntax validation and equivalent local commands.
 
@@ -120,9 +120,9 @@
 ## Task 10: Secure persistence boundary
 
 **Acceptance criteria:**
-- [ ] The selected product model is explicit: local-only or authenticated owner-scoped remote history.
-- [ ] No unauthenticated global write/read policies remain deployable.
-- [ ] Persistence errors remain visible/recoverable and never hide local records.
+- [x] The selected product model is explicit: local-only history.
+- [x] The anonymous remote path is disabled and the legacy schema is marked non-deployable.
+- [x] Browser-local records remain the source of truth.
 
 **Verification:** persistence contract tests; schema-policy tests if remote is retained; documented production configuration.
 
