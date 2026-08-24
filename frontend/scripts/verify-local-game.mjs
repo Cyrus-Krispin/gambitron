@@ -226,4 +226,44 @@ if (
 }
 terminalReloadSocket.close();
 
-console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}; terminal reload preserved ${mate.san}`);
+const timeoutMessages = [];
+const timeoutSocket = createLocalGameSocket((msg) => timeoutMessages.push(msg), () => {
+  timeoutSocket.send(JSON.stringify({
+    type: "start_game",
+    timeControlMs: 25,
+    incrementMs: 0,
+    playerColor: "white",
+  }));
+});
+const timeoutStarted = await waitFor(timeoutMessages, (msg) => msg.type === "game_started", "timeout game start");
+const timedOut = await waitFor(
+  timeoutMessages,
+  (msg) => msg.type === "game_ended" && msg.gameId === timeoutStarted.gameId,
+  "live timeout",
+);
+if (timedOut.result !== "0-1" || timedOut.termination !== "timeout") {
+  throw new Error(`Incorrect timeout: ${JSON.stringify(timedOut)}`);
+}
+timeoutSocket.close();
+
+const timeoutReloadModule = await import(`${moduleUrl}?instance=7`);
+const timeoutReloadMessages = [];
+const timeoutReloadSocket = timeoutReloadModule.createLocalGameSocket(
+  (msg) => timeoutReloadMessages.push(msg),
+  () => timeoutReloadSocket.send(JSON.stringify({ type: "subscribe", gameId: timeoutStarted.gameId })),
+);
+const timeoutReloaded = await waitFor(
+  timeoutReloadMessages,
+  (msg) => msg.type === "game_state" && msg.gameId === timeoutStarted.gameId,
+  "timeout after reload",
+);
+if (
+  timeoutReloaded.playerTimeMs !== 0 ||
+  timeoutReloaded.result !== "0-1" ||
+  timeoutReloaded.termination !== "timeout"
+) {
+  throw new Error(`Timeout reload regressed: ${JSON.stringify(timeoutReloaded)}`);
+}
+timeoutReloadSocket.close();
+
+console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}; terminal reload preserved ${mate.san}; timeout reload preserved 0-1`);

@@ -69,5 +69,19 @@ describe("active local game state", () => {
       termination: "checkmate",
       activeClock: null,
     }, "game-1")).toBeNull();
+    expect(parseStoredGame({
+      ...valid,
+      playerTimeMs: 0,
+      result: "1-0",
+      termination: "timeout",
+      activeClock: null,
+    }, "game-1")).toBeNull();
+    expect(parseStoredGame({
+      ...valid,
+      playerTimeMs: 0,
+      result: "0-1",
+      termination: "timeout",
+      activeClock: null,
+    }, "game-1")).not.toBeNull();
   });
 });

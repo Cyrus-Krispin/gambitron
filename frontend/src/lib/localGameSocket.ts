@@ -134,7 +134,14 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
   let restoredResult = stored.result as string | undefined;
   let restoredTermination = stored.termination as string | undefined;
   if (restoredTermination === "timeout") {
-    if (stored.playerTimeMs > 0 && stored.aiTimeMs > 0) return null;
+    const playerExpired = stored.playerTimeMs === 0;
+    const aiExpired = stored.aiTimeMs === 0;
+    if (playerExpired === aiExpired) return null;
+    const playerIsWhite = stored.playerColor === "white";
+    const expectedResult = playerExpired
+      ? (playerIsWhite ? "0-1" : "1-0")
+      : (playerIsWhite ? "1-0" : "0-1");
+    if (restoredResult !== expectedResult) return null;
   } else if (restoredResult !== undefined) {
     if (outcome.result !== restoredResult || outcome.termination !== restoredTermination) return null;
   } else if (outcome.result !== "*") {
@@ -270,6 +277,8 @@ export function createLocalGameSocket(
       state.result = timeoutResult(state);
       state.termination = "timeout";
       state.activeClock = null;
+      state.playerTimeMs = Math.max(0, state.playerTimeMs);
+      state.aiTimeMs = Math.max(0, state.aiTimeMs);
       publishToGame(state.gameId, {
         type: "game_ended",
         gameId: state.gameId,
