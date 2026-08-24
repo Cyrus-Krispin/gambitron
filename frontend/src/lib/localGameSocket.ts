@@ -1,12 +1,13 @@
 import { Chess } from "chess.js";
 import { calculateAIMove } from "@/lib/wasmEngine";
+import { getGameOutcome } from "@/lib/gameOutcome";
 import type { ClientMessage, GameMoveMessage, ServerMessage } from "@/lib/websocket";
 
 type LocalSocket = WebSocket & {
   readyState: number;
 };
 
-interface LocalGameState {
+export interface LocalGameState {
   gameId: string;
   fen: string;
   playerColor: "white" | "black";
@@ -19,6 +20,7 @@ interface LocalGameState {
   result?: string;
   termination?: string;
   moves: GameMoveMessage[];
+  positionCounts: Record<string, number>;
   persistedAt: number;
 }
 
@@ -26,7 +28,7 @@ const ACTIVE_GAMES_STORAGE_KEY = "gambitron.activeGames.v1";
 const localGames = new Map<string, LocalGameState>();
 const subscribers = new Map<string, Set<(msg: ServerMessage) => void>>();
 
-function readStoredGames(): LocalGameState[] {
+function readStoredGames(): unknown[] {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(ACTIVE_GAMES_STORAGE_KEY) ?? "[]");
     return Array.isArray(parsed) ? parsed : [];
@@ -35,12 +37,105 @@ function readStoredGames(): LocalGameState[] {
   }
 }
 
+function positionKey(fen: string): string {
+  return fen.split(" ").slice(0, 4).join(" ");
+}
+
+function isSquare(value: unknown): value is string {
+  return typeof value === "string" && /^[a-h][1-8]$/.test(value);
+}
+
+function isGameMove(value: unknown): value is GameMoveMessage {
+  if (!value || typeof value !== "object") return false;
+  const move = value as Record<string, unknown>;
+  if (move.color !== "w" && move.color !== "b") return false;
+  if (move.san !== undefined && (typeof move.san !== "string" || move.san.length > 32)) return false;
+  if (move.from !== undefined && !isSquare(move.from)) return false;
+  if (move.to !== undefined && !isSquare(move.to)) return false;
+  if (!move.san && (!isSquare(move.from) || !isSquare(move.to))) return false;
+  if (move.promotion !== undefined && !["q", "r", "b", "n"].includes(String(move.promotion))) return false;
+  return true;
+}
+
+export function rebuildPositionCounts(
+  moves: GameMoveMessage[],
+): { counts: Record<string, number>; fen: string } | null {
+  const game = new Chess();
+  const counts: Record<string, number> = { [positionKey(game.fen())]: 1 };
+  try {
+    for (const entry of moves) {
+      if (!isGameMove(entry)) return null;
+      const played = entry.san
+        ? game.move(entry.san)
+        : game.move({ from: entry.from!, to: entry.to!, promotion: entry.promotion ?? "q" });
+      if (!played || played.color !== entry.color) return null;
+      const key = positionKey(game.fen());
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+  } catch {
+    return null;
+  }
+  return { counts, fen: game.fen() };
+}
+
+export function parseStoredGame(value: unknown, expectedGameId: string): LocalGameState | null {
+  if (!value || typeof value !== "object") return null;
+  const stored = value as Record<string, unknown>;
+  const activeClock = stored.activeClock;
+  const finite = (candidate: unknown): candidate is number =>
+    typeof candidate === "number" && Number.isFinite(candidate);
+  if (stored.gameId !== expectedGameId || expectedGameId.length > 128) return null;
+  if (stored.playerColor !== "white" && stored.playerColor !== "black") return null;
+  if (activeClock !== "player" && activeClock !== "ai" && activeClock !== null) return null;
+  if (!finite(stored.timeControlMs) || stored.timeControlMs <= 0 || stored.timeControlMs > 86_400_000) return null;
+  if (!finite(stored.incrementMs) || stored.incrementMs < 0 || stored.incrementMs > 3_600_000) return null;
+  if (!finite(stored.playerTimeMs) || stored.playerTimeMs < 0 || stored.playerTimeMs > 604_800_000) return null;
+  if (!finite(stored.aiTimeMs) || stored.aiTimeMs < 0 || stored.aiTimeMs > 604_800_000) return null;
+  if (!finite(stored.persistedAt) || stored.persistedAt <= 0) return null;
+  if (!Array.isArray(stored.moves) || stored.moves.length > 1_000 || !stored.moves.every(isGameMove)) return null;
+  if (stored.result !== undefined && !["1-0", "0-1", "1/2-1/2"].includes(String(stored.result))) return null;
+  if (stored.termination !== undefined && (typeof stored.termination !== "string" || stored.termination.length > 80)) return null;
+  if (typeof stored.fen !== "string") return null;
+
+  try {
+    new Chess(stored.fen);
+  } catch {
+    return null;
+  }
+  const rebuilt = rebuildPositionCounts(stored.moves);
+  if (!rebuilt || rebuilt.fen !== stored.fen) return null;
+  const repeatedPosition = Object.values(rebuilt.counts).some((count) => count >= 3);
+  const restoredResult = repeatedPosition ? "1/2-1/2" : stored.result as string | undefined;
+  const restoredTermination = repeatedPosition
+    ? "threefold repetition"
+    : stored.termination as string | undefined;
+
+  return {
+    gameId: expectedGameId,
+    fen: stored.fen,
+    playerColor: stored.playerColor,
+    timeControlMs: stored.timeControlMs,
+    incrementMs: stored.incrementMs,
+    playerTimeMs: stored.playerTimeMs,
+    aiTimeMs: stored.aiTimeMs,
+    activeClock: restoredResult ? null : activeClock,
+    lastTick: performance.now(),
+    result: restoredResult,
+    termination: restoredTermination,
+    moves: stored.moves,
+    positionCounts: rebuilt.counts,
+    persistedAt: stored.persistedAt,
+  };
+}
+
 function persistGame(state: LocalGameState, force = false): void {
   const now = Date.now();
   if (!force && now - state.persistedAt < 1_000) return;
   state.persistedAt = now;
   try {
-    const games = readStoredGames().filter((game) => game.gameId !== state.gameId);
+    const games = readStoredGames().filter(
+      (game) => !game || typeof game !== "object" || (game as { gameId?: unknown }).gameId !== state.gameId,
+    );
     window.localStorage.setItem(
       ACTIVE_GAMES_STORAGE_KEY,
       JSON.stringify([state, ...games].slice(0, 10)),
@@ -51,14 +146,11 @@ function persistGame(state: LocalGameState, force = false): void {
 }
 
 function restoreGame(gameId: string): LocalGameState | null {
-  const stored = readStoredGames().find((game) => game.gameId === gameId);
-  if (!stored || typeof stored.fen !== "string" || !Array.isArray(stored.moves)) return null;
-
-  const state: LocalGameState = {
-    ...stored,
-    lastTick: performance.now(),
-    persistedAt: Number.isFinite(stored.persistedAt) ? stored.persistedAt : Date.now(),
-  };
+  const stored = readStoredGames().find(
+    (game) => !!game && typeof game === "object" && (game as { gameId?: unknown }).gameId === gameId,
+  );
+  const state = parseStoredGame(stored, gameId);
+  if (!state) return null;
   const elapsed = Math.max(0, Date.now() - state.persistedAt);
   if (!state.result && state.activeClock === "player") state.playerTimeMs -= elapsed;
   if (!state.result && state.activeClock === "ai") state.aiTimeMs -= elapsed;
@@ -72,6 +164,14 @@ function restoreGame(gameId: string): LocalGameState | null {
   localGames.set(gameId, state);
   persistGame(state, true);
   return state;
+}
+
+function recordPosition(state: LocalGameState, fen: string): number {
+  const game = new Chess(fen);
+  state.fen = game.fen();
+  const key = positionKey(state.fen);
+  state.positionCounts[key] = (state.positionCounts[key] ?? 0) + 1;
+  return state.positionCounts[key];
 }
 
 function createGameId(): string {
@@ -166,38 +266,42 @@ export function createLocalGameSocket(
       const ai = await calculateAIMove(state.fen);
       if (!state || state.result) return;
       applyClock();
-      if (ai.updated_fen) state.fen = ai.updated_fen;
-      if (ai.result && ai.result !== "*") {
-        state.result = ai.result;
-        state.termination = ai.termination ?? "checkmate";
+      const repetitions = ai.move && ai.updated_fen ? recordPosition(state, ai.updated_fen) : 0;
+      const aiResult = repetitions >= 3 ? "1/2-1/2" : ai.result;
+      const aiTermination = repetitions >= 3 ? "threefold repetition" : ai.termination;
+      if (aiResult && aiResult !== "*") {
+        state.result = aiResult;
+        state.termination = aiTermination ?? "checkmate";
         state.activeClock = null;
       } else {
         state.aiTimeMs += state.incrementMs;
         state.activeClock = "player";
       }
       state.lastTick = performance.now();
-      state.moves.push({
-        captured: ai.captured,
-        color: state.playerColor === "white" ? "b" : "w",
-        from: ai.move?.from,
-        to: ai.move?.to,
-        san: ai.move?.san,
-        promotion:
-          ai.move?.promotion === "q" || ai.move?.promotion === "r" ||
-          ai.move?.promotion === "b" || ai.move?.promotion === "n"
-            ? ai.move.promotion
-            : undefined,
-      });
+      if (ai.move) {
+        state.moves.push({
+          captured: ai.captured,
+          color: state.playerColor === "white" ? "b" : "w",
+          from: ai.move.from,
+          to: ai.move.to,
+          san: ai.move.san,
+          promotion:
+            ai.move.promotion === "q" || ai.move.promotion === "r" ||
+            ai.move.promotion === "b" || ai.move.promotion === "n"
+              ? ai.move.promotion
+              : undefined,
+        });
+      }
       persistGame(state, true);
       publishToGame(state.gameId, {
         type: "ai_move",
         updatedFen: state.fen,
-        result: ai.result,
+        result: aiResult,
         san: ai.move?.san,
         fromSquare: ai.move?.from,
         toSquare: ai.move?.to,
         captured: ai.captured,
-        termination: ai.termination,
+        termination: aiTermination,
       });
       publishTime();
     } catch (error) {
@@ -226,6 +330,7 @@ export function createLocalGameSocket(
           activeClock: msg.playerColor === "white" ? "player" : "ai",
           lastTick: performance.now(),
           moves: [],
+          positionCounts: { [positionKey(game.fen())]: 1 },
           persistedAt: 0,
         };
         localGames.set(gameId, state);
@@ -245,23 +350,68 @@ export function createLocalGameSocket(
       } else if (msg.type === "player_move" || msg.type === "promotion_move") {
         if (!state) return;
         applyClock();
+        let played;
+        let nextGame: Chess;
+        try {
+          nextGame = new Chess(state.fen);
+          played = msg.type === "player_move" && msg.san
+            ? nextGame.move(msg.san)
+            : nextGame.move({
+                from: msg.from!,
+                to: msg.to!,
+                promotion: msg.type === "promotion_move" ? msg.promotion : "q",
+              });
+          const submittedFen = new Chess(msg.fen).fen();
+          const playerTurn = state.playerColor === "white" ? "w" : "b";
+          if (!played || played.color !== playerTurn || nextGame.fen() !== submittedFen) throw new Error("mismatch");
+        } catch {
+          dispatch({ type: "error", message: "The move did not match the active game." });
+          return;
+        }
         state.moves.push({
-          captured: msg.captured,
-          color: state.playerColor === "white" ? "w" : "b",
-          from: msg.from,
-          to: msg.to,
-          san: "san" in msg ? msg.san : undefined,
-          promotion: msg.type === "promotion_move" ? msg.promotion : undefined,
+          captured: played.captured,
+          color: played.color,
+          from: played.from,
+          to: played.to,
+          san: played.san,
+          promotion:
+            played.promotion === "q" || played.promotion === "r" ||
+            played.promotion === "b" || played.promotion === "n"
+              ? played.promotion
+              : undefined,
         });
-        state.fen = msg.fen;
+        const repetitions = recordPosition(state, nextGame.fen());
+        const outcome = getGameOutcome(nextGame);
         state.playerTimeMs += state.incrementMs;
-        state.activeClock = "ai";
+        state.activeClock = repetitions >= 3 || outcome.result !== "*" ? null : "ai";
         state.lastTick = performance.now();
+        if (repetitions >= 3) {
+          state.result = "1/2-1/2";
+          state.termination = "threefold repetition";
+        } else if (outcome.result !== "*") {
+          state.result = outcome.result;
+          state.termination = outcome.termination ?? "draw";
+        }
         persistGame(state, true);
+        if (state.result) {
+          publishToGame(state.gameId, {
+            type: "game_ended",
+            gameId: state.gameId,
+            result: state.result,
+            termination: state.termination!,
+            updatedFen: state.fen,
+          });
+          return;
+        }
         void runAIMove();
       } else if (msg.type === "request_ai_move") {
         if (!state) return;
-        state.fen = msg.fen;
+        try {
+          if (new Chess(msg.fen).fen() !== state.fen) throw new Error("mismatch");
+        } catch {
+          dispatch({ type: "error", message: "The requested position did not match the active game." });
+          return;
+        }
         void runAIMove();
       } else if (msg.type === "subscribe") {
         state = localGames.get(msg.gameId) ?? restoreGame(msg.gameId) ?? state;
