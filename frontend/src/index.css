@@ -11,7 +11,7 @@
   --line-soft: oklch(0.255 0.026 285);
   --ink: oklch(0.94 0.012 292);
   --ink-dim: oklch(0.76 0.018 292);
-  --ink-faint: oklch(0.56 0.02 292);
+  --ink-faint: oklch(0.6 0.02 292);
   --accent: oklch(0.68 0.19 305);
   --accent-soft: oklch(0.68 0.19 305 / 0.18);
   --accent-line: oklch(0.76 0.17 305);
@@ -399,6 +399,7 @@ a {
   width: 100%;
   max-width: 1240px;
   min-height: 0;
+  min-width: 0;
   margin: 0 auto;
   padding: 16px 40px 32px;
   display: grid;
@@ -408,6 +409,7 @@ a {
 
 .board-wrap {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -460,6 +462,8 @@ a {
   align-items: center;
   gap: 1px;
   flex-wrap: wrap;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .cap-piece {
@@ -510,6 +514,7 @@ a {
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 10px;
@@ -520,8 +525,8 @@ a {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   aspect-ratio: 1;
   height: 100%;
   max-width: 100%;
@@ -537,6 +542,8 @@ a {
   display: grid;
   place-items: center;
   padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 .square.light {
@@ -1248,12 +1255,22 @@ body.hide-coords .square .coord {
 }
 
 @media (max-width: 520px) {
+  .topbar {
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .brand {
+    font-size: 16px;
+  }
+
   .topbar nav {
     gap: 2px;
   }
 
   .tab {
-    font-size: 12px;
+    padding: 0 6px;
+    font-size: 11px;
   }
 
   .time-number {
