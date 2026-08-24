@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run src",
     "test:e2e": "playwright test",
+    "test:config": "node scripts/verify-deployment-config.mjs",
     "preview": "vite preview",
     "test:local-game": "node scripts/verify-local-game.mjs",
     "test:engine": "node scripts/engine-strength.mjs"

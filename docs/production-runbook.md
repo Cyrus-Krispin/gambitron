@@ -17,8 +17,12 @@ Required GitHub repository settings:
 
    ```bash
    cd frontend
-   PLAYWRIGHT_BASE_URL=https://preview.example npm run test:e2e
+   VERCEL_AUTOMATION_BYPASS_SECRET=... \
+     PLAYWRIGHT_BASE_URL=https://preview.example \
+     npm run test:e2e
    ```
+
+   The bypass value must be a scoped Vercel Deployment Protection automation secret stored in the release environment; never commit it or expose it as a Vite variable.
 
 3. Verify `/health.json` contains `{"status":"ok","application":"gambitron"}`.
 4. Verify the HTML response has CSP, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and frame-denial headers.
