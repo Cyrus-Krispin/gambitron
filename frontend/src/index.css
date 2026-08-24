@@ -119,6 +119,18 @@ a {
   text-decoration: none;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .app {
   height: 100%;
   display: flex;
@@ -538,12 +550,23 @@ a {
 }
 
 .square {
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
   position: relative;
   display: grid;
   place-items: center;
   padding: 0;
   min-width: 0;
   min-height: 0;
+}
+
+.square:focus-visible {
+  z-index: 4;
+  outline: 3px solid var(--accent-line);
+  outline-offset: -3px;
 }
 
 .square.light {
@@ -802,13 +825,34 @@ body.hide-coords .square .coord {
   overflow-y: auto;
 }
 
-.history h2,
-.about h2 {
+.history h1,
+.about h1 {
   margin: 0 0 38px;
   font-size: 56px;
   line-height: 1;
   font-weight: 600;
   letter-spacing: 0;
+}
+
+.not-found {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+}
+
+.not-found h1,
+.not-found p {
+  margin: 0;
+}
+
+.not-found p:not(.eyebrow) {
+  max-width: 46ch;
+  color: var(--ink-dim);
 }
 
 .history-table {
@@ -966,6 +1010,31 @@ body.hide-coords .square .coord {
   border-color: var(--accent-line);
 }
 
+.replay-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.move-list button.mv {
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.move-list button.mv:hover:not(:disabled),
+.move-list button.mv:focus-visible {
+  color: var(--accent);
+  outline: 1px solid var(--accent-line);
+}
+
+.move-list button.mv:disabled {
+  cursor: default;
+}
+
 .replay-controls .pos {
   min-width: 84px;
   text-align: center;
@@ -1011,6 +1080,19 @@ body.hide-coords .square .coord {
   background: var(--surface);
   text-align: center;
   box-shadow: 0 24px 90px oklch(0 0 0 / 0.42), 0 0 70px oklch(0.68 0.19 305 / 0.1);
+}
+
+.modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 51;
+  transform: translate(-50%, -50%);
+}
+
+.modal:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 4px;
 }
 
 .endgame-banner {
@@ -1229,8 +1311,8 @@ body.hide-coords .square .coord {
     padding: 48px 20px 72px;
   }
 
-  .history h2,
-  .about h2 {
+  .history h1,
+  .about h1 {
     font-size: 42px;
   }
 

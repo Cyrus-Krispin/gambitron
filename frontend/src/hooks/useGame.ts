@@ -823,7 +823,7 @@ export function useGame(options?: UseGameOptions) {
       connectToExistingGame(gameId, initialGameState ?? undefined);
       return () => closeSocket();
     }
-  }, [gameId, connectToExistingGame, initialGameState?.fen, closeSocket]);
+  }, [gameId, connectToExistingGame, initialGameState, closeSocket]);
 
   useEffect(() => {
     if (!gameEnded || !endgameResult || savedGameIdRef.current || moveHistory.length === 0) return;

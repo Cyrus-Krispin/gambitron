@@ -1,5 +1,7 @@
+import { useRef, useState } from "react";
 import { ChessPiece } from "./ChessPiece";
 import type { PlayerColor } from "@/hooks/useGame";
+import { getKeyboardTarget } from "@/lib/boardKeyboard";
 
 interface PieceInfo {
   type: string;
@@ -45,6 +47,8 @@ export function ChessBoard({
 }: ChessBoardProps) {
   const flipped = orientation === "black";
   const fileLabels = flipped ? [...HORIZONTAL].reverse() : HORIZONTAL;
+  const [focusedSquare, setFocusedSquare] = useState(orientation === "white" ? "e2" : "e7");
+  const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const rows = VERTICAL;
 
@@ -53,6 +57,8 @@ export function ChessBoard({
       className="board"
       role="grid"
       aria-label="Chess board"
+      aria-rowcount={8}
+      aria-colcount={8}
       style={{ opacity: startOpen ? 0.5 : 1, pointerEvents: startOpen ? "none" : "auto" }}
     >
       {rows.map((rank, rowIdx) =>
@@ -92,11 +98,47 @@ export function ChessBoard({
             ((playerColor === "white" && piece.color === "w") ||
               (playerColor === "black" && piece.color === "b"));
 
+          const pieceColor = piece?.color === "w" ? "white" : "black";
+          const pieceNames: Record<string, string> = {
+            p: "pawn",
+            n: "knight",
+            b: "bishop",
+            r: "rook",
+            q: "queen",
+            k: "king",
+          };
+          const squareLabel = [
+            squareName,
+            piece ? `${pieceColor} ${pieceNames[piece.type.toLowerCase()] ?? piece.type}` : "empty",
+            isSelected ? "selected" : "",
+            isLegal ? "legal move" : "",
+          ]
+            .filter(Boolean)
+            .join(", ");
+
           return (
-            <div
+            <button
+              type="button"
               key={squareName}
+              ref={(node) => {
+                squareRefs.current[squareName] = node;
+              }}
               className={cls}
               onClick={() => !gameEnded && onTileClick(squareName)}
+              onFocus={() => setFocusedSquare(squareName)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && selectedSquare) {
+                  event.preventDefault();
+                  onTileClick(selectedSquare);
+                  return;
+                }
+                const target = getKeyboardTarget(squareName, event.key, orientation);
+                if (target !== squareName) {
+                  event.preventDefault();
+                  setFocusedSquare(target);
+                  squareRefs.current[target]?.focus();
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
@@ -109,7 +151,9 @@ export function ChessBoard({
                 }
               }}
               role="gridcell"
-              aria-label={squareName}
+              aria-label={squareLabel}
+              aria-selected={isSelected}
+              tabIndex={focusedSquare === squareName ? 0 : -1}
             >
               {showFile && <span className="coord file">{file}</span>}
               {showRank && <span className="coord rank">{rank}</span>}
@@ -124,7 +168,7 @@ export function ChessBoard({
                 />
               )}
               {isLegal && <span className="move-dot" />}
-            </div>
+            </button>
           );
         })
       )}

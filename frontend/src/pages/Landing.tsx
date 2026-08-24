@@ -38,6 +38,7 @@ export default function Landing() {
 
   return (
     <div className="lobby fade-in">
+      <h1 className="sr-only">Play chess against Gambitron</h1>
       <section className="lobby-panel" aria-label="Start game">
         <div className="time-stepper" aria-label="Time control">
           <button

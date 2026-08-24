@@ -126,6 +126,7 @@ export default function Play() {
 
   return (
     <div className="game fade-in">
+      <h1 className="sr-only">Game against Gambitron</h1>
       {/* Left: board area */}
       <div className="board-wrap">
         {/* Opponent strip */}
@@ -185,6 +186,9 @@ export default function Play() {
               }}
             >
               <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
                 style={{
                   fontFamily: "var(--mono)",
                   fontSize: 10,

@@ -34,7 +34,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
       .catch((err) => {
         setError(err.message ?? "Failed to render diagram");
       });
-  }, [chart]);
+  }, [chart, id]);
 
   if (error) {
     return (

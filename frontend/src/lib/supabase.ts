@@ -1,10 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
-
-export const hasSupabaseConfig = Boolean(supabase);
+// Remote history remains deliberately disabled until the application has an
+// authenticated, owner-scoped persistence design. The previous anonymous
+// schema exposed a shared writable archive to every browser holding the anon
+// key. Local history is the production storage contract in the meantime.
+export const supabase: SupabaseClient | null = null;

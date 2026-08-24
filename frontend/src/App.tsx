@@ -7,26 +7,26 @@ import Game from "./pages/Game";
 import History from "./pages/History";
 import Replay from "./pages/Replay";
 import { Analytics } from "@vercel/analytics/react";
+import NotFound from "./pages/NotFound";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   return (
     <Router>
-      <Layout>
-        <Switch>
-          <Route exact path="/" component={Landing} />
-          <Route exact path="/play" render={() => <Redirect to="/" />} />
-          <Route exact path="/play/:gameId" component={Play} />
-          <Route
-            exact
-            path="/play/:minutes"
-            render={({ match }) => <Redirect to={`/play/new?minutes=${match.params.minutes}`} />}
-          />
-          <Route exact path="/about" component={About} />
-          <Route exact path="/history" component={History} />
-          <Route exact path="/history/:gameId" component={Replay} />
-          <Route exact path="/admin" component={Game} />
-        </Switch>
-      </Layout>
+      <ErrorBoundary>
+        <Layout>
+          <Switch>
+            <Route exact path="/" component={Landing} />
+            <Route exact path="/play" render={() => <Redirect to="/" />} />
+            <Route exact path="/play/:gameId" component={Play} />
+            <Route exact path="/about" component={About} />
+            <Route exact path="/history" component={History} />
+            <Route exact path="/history/:gameId" component={Replay} />
+            <Route exact path="/admin" component={Game} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </ErrorBoundary>
       <Analytics />
     </Router>
   );
