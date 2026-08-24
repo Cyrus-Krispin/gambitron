@@ -53,15 +53,17 @@ function isGameMove(value: unknown): value is GameMoveMessage {
   if (move.from !== undefined && !isSquare(move.from)) return false;
   if (move.to !== undefined && !isSquare(move.to)) return false;
   if (!move.san && (!isSquare(move.from) || !isSquare(move.to))) return false;
+  if (move.captured !== undefined && (typeof move.captured !== "string" || !/^[pnbrq]$/.test(move.captured))) return false;
   if (move.promotion !== undefined && !["q", "r", "b", "n"].includes(String(move.promotion))) return false;
   return true;
 }
 
 export function rebuildPositionCounts(
   moves: GameMoveMessage[],
-): { counts: Record<string, number>; fen: string } | null {
+): { counts: Record<string, number>; fen: string; moves: GameMoveMessage[] } | null {
   const game = new Chess();
   const counts: Record<string, number> = { [positionKey(game.fen())]: 1 };
+  const canonicalMoves: GameMoveMessage[] = [];
   try {
     for (const entry of moves) {
       if (!isGameMove(entry)) return null;
@@ -69,13 +71,30 @@ export function rebuildPositionCounts(
         ? game.move(entry.san)
         : game.move({ from: entry.from!, to: entry.to!, promotion: entry.promotion ?? "q" });
       if (!played || played.color !== entry.color) return null;
+      if (entry.san !== undefined && entry.san !== played.san) return null;
+      if (entry.from !== undefined && entry.from !== played.from) return null;
+      if (entry.to !== undefined && entry.to !== played.to) return null;
+      if (entry.captured !== played.captured) return null;
+      if (entry.promotion !== played.promotion) return null;
+      canonicalMoves.push({
+        color: played.color,
+        san: played.san,
+        from: played.from,
+        to: played.to,
+        captured: played.captured,
+        promotion:
+          played.promotion === "q" || played.promotion === "r" ||
+          played.promotion === "b" || played.promotion === "n"
+            ? played.promotion
+            : undefined,
+      });
       const key = positionKey(game.fen());
       counts[key] = (counts[key] ?? 0) + 1;
     }
   } catch {
     return null;
   }
-  return { counts, fen: game.fen() };
+  return { counts, fen: game.fen(), moves: canonicalMoves };
 }
 
 export function parseStoredGame(value: unknown, expectedGameId: string): LocalGameState | null {
@@ -93,8 +112,13 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
   if (!finite(stored.aiTimeMs) || stored.aiTimeMs < 0 || stored.aiTimeMs > 604_800_000) return null;
   if (!finite(stored.persistedAt) || stored.persistedAt <= 0) return null;
   if (!Array.isArray(stored.moves) || stored.moves.length > 1_000 || !stored.moves.every(isGameMove)) return null;
+  const allowedTerminations = new Set([
+    "checkmate", "stalemate", "insufficient material", "threefold repetition",
+    "fifty-move rule", "draw", "timeout",
+  ]);
   if (stored.result !== undefined && !["1-0", "0-1", "1/2-1/2"].includes(String(stored.result))) return null;
-  if (stored.termination !== undefined && (typeof stored.termination !== "string" || stored.termination.length > 80)) return null;
+  if (stored.termination !== undefined && (typeof stored.termination !== "string" || !allowedTerminations.has(stored.termination))) return null;
+  if ((stored.result === undefined) !== (stored.termination === undefined)) return null;
   if (typeof stored.fen !== "string") return null;
 
   try {
@@ -104,11 +128,19 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
   }
   const rebuilt = rebuildPositionCounts(stored.moves);
   if (!rebuilt || rebuilt.fen !== stored.fen) return null;
-  const repeatedPosition = Object.values(rebuilt.counts).some((count) => count >= 3);
-  const restoredResult = repeatedPosition ? "1/2-1/2" : stored.result as string | undefined;
-  const restoredTermination = repeatedPosition
-    ? "threefold repetition"
-    : stored.termination as string | undefined;
+  const rebuiltGame = new Chess();
+  for (const move of rebuilt.moves) rebuiltGame.move(move.san!);
+  const outcome = getGameOutcome(rebuiltGame);
+  let restoredResult = stored.result as string | undefined;
+  let restoredTermination = stored.termination as string | undefined;
+  if (restoredTermination === "timeout") {
+    if (stored.playerTimeMs > 0 && stored.aiTimeMs > 0) return null;
+  } else if (restoredResult !== undefined) {
+    if (outcome.result !== restoredResult || outcome.termination !== restoredTermination) return null;
+  } else if (outcome.result !== "*") {
+    restoredResult = outcome.result;
+    restoredTermination = outcome.termination;
+  }
 
   return {
     gameId: expectedGameId,
@@ -122,7 +154,7 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
     lastTick: performance.now(),
     result: restoredResult,
     termination: restoredTermination,
-    moves: stored.moves,
+    moves: rebuilt.moves,
     positionCounts: rebuilt.counts,
     persistedAt: stored.persistedAt,
   };

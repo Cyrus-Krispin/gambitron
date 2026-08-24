@@ -153,4 +153,77 @@ if (!openingAiMove.updatedFen || !openingAiMove.fromSquare || !openingAiMove.toS
 }
 blackSocket2.close();
 
-console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}`);
+const terminalGameId = "terminal-player-move";
+const beforeMate = new Chess();
+const terminalMoves = ["f3", "e5", "g4"].map((san) => {
+  const move = beforeMate.move(san);
+  return {
+    color: move.color,
+    san: move.san,
+    from: move.from,
+    to: move.to,
+    captured: move.captured,
+    promotion: move.promotion,
+  };
+});
+window.localStorage.setItem("gambitron.activeGames.v1", JSON.stringify([{
+  gameId: terminalGameId,
+  fen: beforeMate.fen(),
+  playerColor: "black",
+  timeControlMs: 300000,
+  incrementMs: 0,
+  playerTimeMs: 290000,
+  aiTimeMs: 290000,
+  activeClock: "player",
+  lastTick: 0,
+  moves: terminalMoves,
+  persistedAt: Date.now(),
+}]));
+
+const terminalModule = await import(`${moduleUrl}?instance=5`);
+const terminalMessages = [];
+const terminalSocket = terminalModule.createLocalGameSocket((msg) => terminalMessages.push(msg), () => {
+  terminalSocket.send(JSON.stringify({ type: "subscribe", gameId: terminalGameId }));
+});
+await waitFor(terminalMessages, (msg) => msg.type === "game_state", "terminal setup state");
+const mate = beforeMate.move("Qh4#");
+terminalSocket.send(JSON.stringify({
+  type: "player_move",
+  gameId: terminalGameId,
+  fen: beforeMate.fen(),
+  san: mate.san,
+  from: mate.from,
+  to: mate.to,
+}));
+const terminalResult = await waitFor(
+  terminalMessages,
+  (msg) => msg.type === "game_ended",
+  "player terminal result",
+);
+if (terminalResult.result !== "0-1" || terminalResult.termination !== "checkmate") {
+  throw new Error(`Incorrect terminal result: ${JSON.stringify(terminalResult)}`);
+}
+terminalSocket.close();
+
+const terminalReloadModule = await import(`${moduleUrl}?instance=6`);
+const terminalReloadMessages = [];
+const terminalReloadSocket = terminalReloadModule.createLocalGameSocket(
+  (msg) => terminalReloadMessages.push(msg),
+  () => terminalReloadSocket.send(JSON.stringify({ type: "subscribe", gameId: terminalGameId })),
+);
+const terminalReloaded = await waitFor(
+  terminalReloadMessages,
+  (msg) => msg.type === "game_state",
+  "terminal game after reload",
+);
+if (
+  terminalReloaded.fen !== beforeMate.fen() ||
+  terminalReloaded.moves?.length !== 4 ||
+  terminalReloaded.result !== "0-1" ||
+  terminalReloaded.termination !== "checkmate"
+) {
+  throw new Error(`Terminal reload regressed: ${JSON.stringify(terminalReloaded)}`);
+}
+terminalReloadSocket.close();
+
+console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}; terminal reload preserved ${mate.san}`);

@@ -285,13 +285,13 @@ export function useGame(options?: UseGameOptions) {
       ]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
+      const fen = chess.fen();
+      sendPromotionMove(fen, from, to, piece, captured);
       if (chess.isGameOver()) {
         const outcome = getGameOutcome(chess);
         openEndgame(outcome.result, outcome.termination ?? "draw");
         return;
       }
-      const fen = chess.fen();
-      sendPromotionMove(fen, from, to, piece, captured);
     },
     [chess, pendingPromotionFrom, pendingPromotionTo, playerHasMoved, openEndgame, sendPromotionMove, playerTurn]
   );
@@ -364,13 +364,13 @@ export function useGame(options?: UseGameOptions) {
       setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
+      const fen = chess.fen();
+      sendPlayerMove(fen, san, from, to, captured);
       if (chess.isGameOver()) {
         const outcome = getGameOutcome(chess);
         openEndgame(outcome.result, outcome.termination ?? "draw");
         return;
       }
-      const fen = chess.fen();
-      sendPlayerMove(fen, san, from, to, captured);
     },
     [
       chess,
@@ -445,13 +445,13 @@ export function useGame(options?: UseGameOptions) {
       setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
+      const fen = chess.fen();
+      sendPlayerMove(fen, san, from, to, captured);
       if (chess.isGameOver()) {
         const outcome = getGameOutcome(chess);
         openEndgame(outcome.result, outcome.termination ?? "draw");
         return;
       }
-      const fen = chess.fen();
-      sendPlayerMove(fen, san, from, to, captured);
     },
     [
       chess,

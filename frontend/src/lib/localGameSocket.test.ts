@@ -56,5 +56,18 @@ describe("active local game state", () => {
     expect(parseStoredGame({ ...valid, playerTimeMs: Number.NaN }, "game-1")).toBeNull();
     expect(parseStoredGame({ ...valid, activeClock: "attacker" }, "game-1")).toBeNull();
     expect(parseStoredGame({ ...valid, moves: [{ color: "w", san: "not-a-move" }] }, "game-1")).toBeNull();
+    const e4 = new Chess();
+    e4.move("e4");
+    expect(parseStoredGame({
+      ...valid,
+      fen: e4.fen(),
+      moves: [{ color: "w", san: "e4", from: "a1", to: "a8", captured: "q" }],
+    }, "game-1")).toBeNull();
+    expect(parseStoredGame({
+      ...valid,
+      result: "1-0",
+      termination: "checkmate",
+      activeClock: null,
+    }, "game-1")).toBeNull();
   });
 });

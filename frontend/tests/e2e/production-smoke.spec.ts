@@ -8,11 +8,16 @@ test.beforeEach(async ({ page }) => {
 
 test("starts, plays, and reloads an active game", async ({ page }) => {
   await expect(page.getByRole("navigation").getByRole("link")).toHaveCount(3);
-  await page.getByRole("button", { name: "♙ White" }).click();
+  const whiteSide = page.getByRole("button", { name: "♙ White" });
+  await whiteSide.click();
+  await expect(whiteSide).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Play", exact: true }).click();
 
   const board = page.getByRole("grid", { name: "Chess board" });
   await expect(board).toBeVisible();
+  await expect(page.getByRole("timer", { name: /^Gambitron clock:/ })).toBeVisible();
+  await expect(page.getByRole("timer", { name: /^Your clock:/ })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Your turn");
   await expect(page.locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
 
   const e2 = page.getByRole("gridcell", { name: /^e2, white pawn/ });
@@ -45,6 +50,13 @@ test("renders a useful not-found page", async ({ page }) => {
   await page.goto("/definitely-missing");
   await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start a game" })).toHaveAttribute("href", "/");
+});
+
+test("contains focus in the new-game side chooser", async ({ page }) => {
+  await page.goto("/play/new");
+  await expect(page.getByRole("dialog", { name: "Choose a side" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "Chess board", includeHidden: true })).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator("[role='gridcell']:not(:disabled)")).toHaveCount(0);
 });
 
 test("starts as black without duplicating the opening move after reload", async ({ page }) => {
