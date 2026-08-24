@@ -132,6 +132,7 @@ export function createLocalGameSocket(
         fromSquare: ai.move?.from,
         toSquare: ai.move?.to,
         captured: ai.captured,
+        termination: ai.termination,
       });
       publishTime();
     } catch (error) {

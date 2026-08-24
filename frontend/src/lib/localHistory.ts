@@ -8,6 +8,7 @@ export interface LocalMoveInput {
   from?: string;
   to?: string;
   san?: string;
+  promotion?: "q" | "r" | "b" | "n";
 }
 
 export interface LocalReplayMove {
@@ -18,6 +19,7 @@ export interface LocalReplayMove {
   to_square?: string;
   captured?: string;
   color?: "w" | "b";
+  promotion?: "q" | "r" | "b" | "n";
 }
 
 export interface LocalGameRecord {
@@ -113,18 +115,26 @@ export async function getSavedGame(id: string): Promise<LocalGameRecord | null> 
   };
 }
 
-export function buildReplayMoves(history: LocalMoveInput[]): LocalReplayMove[] {
-  const chess = new Chess();
+export function buildReplayMoves(history: LocalMoveInput[], initialFen?: string): LocalReplayMove[] {
+  const chess = new Chess(initialFen);
   const moves: LocalReplayMove[] = [];
 
-  history.forEach((entry) => {
-    const played = entry.san
-      ? chess.move(entry.san)
-      : entry.from && entry.to
-      ? chess.move({ from: entry.from, to: entry.to, promotion: "q" })
-      : null;
+  history.forEach((entry, index) => {
+    let played;
+    try {
+      played = entry.san
+        ? chess.move(entry.san)
+        : entry.from && entry.to
+        ? chess.move({ from: entry.from, to: entry.to, promotion: entry.promotion ?? "q" })
+        : null;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "invalid move";
+      throw new Error(`Unable to reconstruct replay at ply ${index + 1}: ${detail}`);
+    }
 
-    if (!played) return;
+    if (!played) {
+      throw new Error(`Unable to reconstruct replay at ply ${index + 1}: missing move data`);
+    }
     moves.push({
       ply: moves.length + 1,
       fen: chess.fen(),
@@ -133,6 +143,13 @@ export function buildReplayMoves(history: LocalMoveInput[]): LocalReplayMove[] {
       to_square: played.to,
       captured: played.captured,
       color: entry.color,
+      promotion:
+        played.promotion === "q" ||
+        played.promotion === "r" ||
+        played.promotion === "b" ||
+        played.promotion === "n"
+          ? played.promotion
+          : undefined,
     });
   });
 

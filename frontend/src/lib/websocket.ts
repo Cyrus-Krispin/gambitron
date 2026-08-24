@@ -90,6 +90,7 @@ export interface AIMoveMessage {
   fromSquare?: string;
   toSquare?: string;
   captured?: string;
+  termination?: string;
 }
 
 export interface GameEndedMessage {

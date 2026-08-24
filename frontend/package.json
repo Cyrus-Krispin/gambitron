@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview",
     "test:local-game": "node scripts/verify-local-game.mjs",
     "test:engine": "node scripts/engine-strength.mjs"

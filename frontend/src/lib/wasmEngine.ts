@@ -1,4 +1,5 @@
 import { Chess, type Move, type PieceSymbol, type Square } from "chess.js";
+import { getGameOutcome } from "./gameOutcome";
 
 export interface SearchDiagnostics {
   depth: number;
@@ -83,15 +84,6 @@ const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
 
 let enginePromise: Promise<WasmEngineExports> | null = null;
-
-function getResult(game: Chess): { result: string; termination?: string } {
-  if (!game.isGameOver()) return { result: "*" };
-  if (game.isCheckmate()) {
-    const winner = game.turn() === "w" ? "b" : "w";
-    return { result: winner === "w" ? "1-0" : "0-1", termination: "checkmate" };
-  }
-  return { result: "1/2-1/2", termination: "draw" };
-}
 
 async function loadWasmEngine(): Promise<WasmEngineExports> {
   enginePromise ??= WebAssembly.instantiate(WASM_BYTES).then(({ instance }) => {
@@ -375,7 +367,7 @@ function diagnostics(ctx: SearchContext, score: number): SearchDiagnostics {
 
 export async function calculateAIMove(fen: string, options: EngineOptions = {}): Promise<LocalAIMoveResult> {
   const game = new Chess(fen);
-  const current = getResult(game);
+  const current = getGameOutcome(game);
   if (current.result !== "*") return current;
 
   const wasm = await loadWasmEngine();
@@ -414,7 +406,7 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
 
   if (!bestMove) return { ...current, search: diagnostics(ctx, bestScore) };
   const played = game.move({ from: bestMove.from as Square, to: bestMove.to as Square, promotion: bestMove.promotion });
-  const end = getResult(game);
+  const end = getGameOutcome(game);
   return {
     updated_fen: game.fen(),
     result: end.result,
