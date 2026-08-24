@@ -29,7 +29,7 @@
 
 The browser handles the board UI, legal-move hints, clocks, AI turns, and replay controls. Live games run through a local socket-compatible runtime, so there is no backend server, EC2 instance, Docker image, or network WebSocket to run.
 
-The engine uses `chess.js` for legal move generation and a small embedded WebAssembly module for hot-path material scoring. Completed games are written from the frontend to Supabase tables and cached in `localStorage` as an offline fallback.
+The engine uses `chess.js` for legal move generation and a small embedded WebAssembly module for hot-path material scoring. Active and completed games are stored privately in the browser.
 
 **AI evaluation factors:** WASM-scored material, legal mobility, capture ordering, promotions, checks, and mate detection.
 
@@ -41,16 +41,9 @@ Editable diagram source: [frontend/public/gambitron-architecture.drawio](fronten
 cd frontend && npm install && npm run dev
 ```
 
-## Supabase
+## Game history
 
-Run `frontend/supabase/schema.sql` in the Supabase SQL Editor, then set these frontend environment variables:
-
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-No server-side Supabase secret is used. The browser writes completed games with the anon key under the row-level security policies in `frontend/supabase/schema.sql`.
+Completed games and active-game recovery are stored privately in the browser. Remote history is intentionally disabled until an authenticated, owner-scoped storage design is available. Do not deploy `frontend/supabase/schema.sql`; it is retained only as legacy migration context.
 
 ## Engine Strength Gate
 

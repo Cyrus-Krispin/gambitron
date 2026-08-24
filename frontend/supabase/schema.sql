@@ -1,6 +1,7 @@
--- Gambitron frontend-only persistence schema.
--- Run this in Supabase SQL Editor, then set VITE_SUPABASE_URL and
--- VITE_SUPABASE_ANON_KEY in the frontend deployment environment.
+-- LEGACY REFERENCE ONLY — DO NOT DEPLOY.
+-- These anonymous shared-table policies are not a safe production contract.
+-- Replace this file with versioned, owner-scoped migrations when authentication
+-- is introduced and reviewed.
 
 create table if not exists public.games (
   id uuid primary key,

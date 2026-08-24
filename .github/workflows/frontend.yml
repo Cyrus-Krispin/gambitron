@@ -1,5 +1,8 @@
 name: Frontend WASM CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -37,6 +40,10 @@ jobs:
         working-directory: frontend
         run: npm run test:local-game
 
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm test
+
       - name: Compare WASM engine with pull request base
         if: github.event_name == 'pull_request'
         working-directory: frontend
@@ -53,7 +60,11 @@ jobs:
 
       - name: Lint
         working-directory: frontend
-        run: npm run lint
+        run: npm run lint -- --max-warnings=0
+
+      - name: Audit production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build
         working-directory: frontend
