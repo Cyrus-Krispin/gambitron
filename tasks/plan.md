@@ -48,9 +48,9 @@ Prepare the browser-only Gambitron application for a safe, observable, reproduci
 
 - [x] Clean audit, lint, typecheck, tests, engine gate, build, and browser smoke pass.
 - [x] Security headers and route rewrites are configured and included in the preview checklist.
-- [ ] Multi-axis final review has no unresolved critical or required code findings.
+- [x] Multi-axis final review has no unresolved critical or required code findings.
 - [x] Rollback and post-deploy verification are documented.
-- [ ] Branch is pushed and pull request is open against `main`.
+- [x] Branch is pushed and pull request is open against `main` as PR #29.
 
 ## Risks and Mitigations
 
