@@ -1,6 +1,6 @@
 import { Chess } from "chess.js";
 import { calculateAIMove } from "@/lib/wasmEngine";
-import type { ClientMessage, ServerMessage } from "@/lib/websocket";
+import type { ClientMessage, GameMoveMessage, ServerMessage } from "@/lib/websocket";
 
 type LocalSocket = WebSocket & {
   readyState: number;
@@ -18,10 +18,61 @@ interface LocalGameState {
   lastTick: number;
   result?: string;
   termination?: string;
+  moves: GameMoveMessage[];
+  persistedAt: number;
 }
 
+const ACTIVE_GAMES_STORAGE_KEY = "gambitron.activeGames.v1";
 const localGames = new Map<string, LocalGameState>();
 const subscribers = new Map<string, Set<(msg: ServerMessage) => void>>();
+
+function readStoredGames(): LocalGameState[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ACTIVE_GAMES_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistGame(state: LocalGameState, force = false): void {
+  const now = Date.now();
+  if (!force && now - state.persistedAt < 1_000) return;
+  state.persistedAt = now;
+  try {
+    const games = readStoredGames().filter((game) => game.gameId !== state.gameId);
+    window.localStorage.setItem(
+      ACTIVE_GAMES_STORAGE_KEY,
+      JSON.stringify([state, ...games].slice(0, 10)),
+    );
+  } catch {
+    // A live game remains playable in memory when storage is unavailable.
+  }
+}
+
+function restoreGame(gameId: string): LocalGameState | null {
+  const stored = readStoredGames().find((game) => game.gameId === gameId);
+  if (!stored || typeof stored.fen !== "string" || !Array.isArray(stored.moves)) return null;
+
+  const state: LocalGameState = {
+    ...stored,
+    lastTick: performance.now(),
+    persistedAt: Number.isFinite(stored.persistedAt) ? stored.persistedAt : Date.now(),
+  };
+  const elapsed = Math.max(0, Date.now() - state.persistedAt);
+  if (!state.result && state.activeClock === "player") state.playerTimeMs -= elapsed;
+  if (!state.result && state.activeClock === "ai") state.aiTimeMs -= elapsed;
+  if (!state.result && (state.playerTimeMs <= 0 || state.aiTimeMs <= 0)) {
+    state.result = timeoutResult(state);
+    state.termination = "timeout";
+    state.activeClock = null;
+  }
+  state.playerTimeMs = Math.max(0, state.playerTimeMs);
+  state.aiTimeMs = Math.max(0, state.aiTimeMs);
+  localGames.set(gameId, state);
+  persistGame(state, true);
+  return state;
+}
 
 function createGameId(): string {
   return crypto.randomUUID();
@@ -95,6 +146,7 @@ export function createLocalGameSocket(
         updatedFen: state.fen,
       });
     }
+    persistGame(state);
     publishTime();
   };
 
@@ -124,6 +176,19 @@ export function createLocalGameSocket(
         state.activeClock = "player";
       }
       state.lastTick = performance.now();
+      state.moves.push({
+        captured: ai.captured,
+        color: state.playerColor === "white" ? "b" : "w",
+        from: ai.move?.from,
+        to: ai.move?.to,
+        san: ai.move?.san,
+        promotion:
+          ai.move?.promotion === "q" || ai.move?.promotion === "r" ||
+          ai.move?.promotion === "b" || ai.move?.promotion === "n"
+            ? ai.move.promotion
+            : undefined,
+      });
+      persistGame(state, true);
       publishToGame(state.gameId, {
         type: "ai_move",
         updatedFen: state.fen,
@@ -160,8 +225,11 @@ export function createLocalGameSocket(
           aiTimeMs: msg.timeControlMs,
           activeClock: msg.playerColor === "white" ? "player" : "ai",
           lastTick: performance.now(),
+          moves: [],
+          persistedAt: 0,
         };
         localGames.set(gameId, state);
+        persistGame(state, true);
         subscribeToGame(gameId);
         ensureTimer();
         dispatch({
@@ -177,18 +245,30 @@ export function createLocalGameSocket(
       } else if (msg.type === "player_move" || msg.type === "promotion_move") {
         if (!state) return;
         applyClock();
+        state.moves.push({
+          captured: msg.captured,
+          color: state.playerColor === "white" ? "w" : "b",
+          from: msg.from,
+          to: msg.to,
+          san: "san" in msg ? msg.san : undefined,
+          promotion: msg.type === "promotion_move" ? msg.promotion : undefined,
+        });
         state.fen = msg.fen;
         state.playerTimeMs += state.incrementMs;
         state.activeClock = "ai";
         state.lastTick = performance.now();
+        persistGame(state, true);
         void runAIMove();
       } else if (msg.type === "request_ai_move") {
         if (!state) return;
         state.fen = msg.fen;
         void runAIMove();
       } else if (msg.type === "subscribe") {
-        state = localGames.get(msg.gameId) ?? state;
-        if (!state) return;
+        state = localGames.get(msg.gameId) ?? restoreGame(msg.gameId) ?? state;
+        if (!state || state.gameId !== msg.gameId) {
+          dispatch({ type: "error", message: "This game is no longer available. Start a new game." });
+          return;
+        }
         subscribeToGame(state.gameId);
         ensureTimer();
         dispatch({
@@ -202,7 +282,11 @@ export function createLocalGameSocket(
           playerColor: state.playerColor,
           result: state.result,
           termination: state.termination,
+          moves: state.moves,
         });
+        if (!state.result && state.activeClock === "ai") {
+          void runAIMove();
+        }
       } else if (msg.type === "ping") {
         dispatch({ type: "pong" });
       }

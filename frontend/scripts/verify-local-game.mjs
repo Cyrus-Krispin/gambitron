@@ -30,6 +30,18 @@ globalThis.window = {
   setTimeout,
   setInterval,
   clearInterval,
+  localStorage: {
+    getItem(key) {
+      return this.values.get(key) ?? null;
+    },
+    setItem(key, value) {
+      this.values.set(key, String(value));
+    },
+    removeItem(key) {
+      this.values.delete(key);
+    },
+    values: new Map(),
+  },
 };
 globalThis.WebSocket = class WebSocketShim {
   static CONNECTING = 0;
@@ -37,7 +49,8 @@ globalThis.WebSocket = class WebSocketShim {
   static CLOSED = 3;
 };
 
-const { createLocalGameSocket } = await import(pathToFileURL(outfile).href);
+const moduleUrl = pathToFileURL(outfile).href;
+const { createLocalGameSocket } = await import(`${moduleUrl}?instance=1`);
 
 function waitFor(messages, predicate, label, startIndex = 0) {
   const started = Date.now();
@@ -71,7 +84,8 @@ const socket1 = createLocalGameSocket((msg) => messages.push(msg), () => {
 const started = await waitFor(messages, (msg) => msg.type === "game_started", "game_started");
 socket1.close();
 
-const socket2 = createLocalGameSocket((msg) => messages.push(msg), () => {
+const reloadedModule = await import(`${moduleUrl}?instance=2`);
+const socket2 = reloadedModule.createLocalGameSocket((msg) => messages.push(msg), () => {
   socket2.send(JSON.stringify({ type: "subscribe", gameId: started.gameId }));
 });
 
@@ -102,6 +116,21 @@ for (let turn = 0; turn < 3; turn++) {
 
 socket2.close();
 
+const secondReload = await import(`${moduleUrl}?instance=3`);
+const recoveredMessages = [];
+const recoveredSocket = secondReload.createLocalGameSocket((msg) => recoveredMessages.push(msg), () => {
+  recoveredSocket.send(JSON.stringify({ type: "subscribe", gameId: started.gameId }));
+});
+const recovered = await waitFor(
+  recoveredMessages,
+  (msg) => msg.type === "game_state" && msg.gameId === started.gameId,
+  "game_state after page reload",
+);
+if (recovered.fen !== chess.fen() || recovered.moves?.length !== 6) {
+  throw new Error(`Reload did not restore the full game: ${JSON.stringify(recovered)}`);
+}
+recoveredSocket.close();
+
 const blackMessages = [];
 const blackSocket1 = createLocalGameSocket((msg) => blackMessages.push(msg), () => {
   blackSocket1.send(JSON.stringify({
@@ -112,10 +141,10 @@ const blackSocket1 = createLocalGameSocket((msg) => blackMessages.push(msg), () 
   }));
 });
 const blackStarted = await waitFor(blackMessages, (msg) => msg.type === "game_started", "black game_started");
-blackSocket1.send(JSON.stringify({ type: "request_ai_move", gameId: blackStarted.gameId, fen: blackStarted.fen }));
 blackSocket1.close();
 
-const blackSocket2 = createLocalGameSocket((msg) => blackMessages.push(msg), () => {
+const blackReload = await import(`${moduleUrl}?instance=4`);
+const blackSocket2 = blackReload.createLocalGameSocket((msg) => blackMessages.push(msg), () => {
   blackSocket2.send(JSON.stringify({ type: "subscribe", gameId: blackStarted.gameId }));
 });
 const openingAiMove = await waitFor(blackMessages, (msg) => msg.type === "ai_move", "opening ai_move after black reconnect");

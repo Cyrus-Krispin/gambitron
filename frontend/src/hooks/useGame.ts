@@ -522,6 +522,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            setMoveHistory(m.moves ?? []);
             syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
@@ -645,6 +646,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            setMoveHistory(m.moves ?? []);
             syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
@@ -700,7 +702,16 @@ export function useGame(options?: UseGameOptions) {
             openEndgame(m.result, m.termination);
           } else if (msg.type === "error") {
             setAiThinking(false);
-            setErrorMessage((msg as ErrorMessage).message);
+            const message = (msg as ErrorMessage).message;
+            if (message.includes("no longer available")) {
+              currentGameIdRef.current = null;
+              setGameStarted(false);
+              setStartOpen(true);
+              chess.reset();
+              setBoardState(chess.board());
+              setMoveHistory([]);
+            }
+            setErrorMessage(message);
             setErrorOpen(true);
           }
         },
