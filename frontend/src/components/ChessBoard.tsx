@@ -57,6 +57,7 @@ export function ChessBoard({
       className="board"
       role="grid"
       aria-label="Chess board"
+      aria-hidden={startOpen || undefined}
       aria-rowcount={8}
       aria-colcount={8}
       style={{ opacity: startOpen ? 0.5 : 1, pointerEvents: startOpen ? "none" : "auto" }}
@@ -153,7 +154,8 @@ export function ChessBoard({
               role="gridcell"
               aria-label={squareLabel}
               aria-selected={isSelected}
-              tabIndex={focusedSquare === squareName ? 0 : -1}
+              disabled={startOpen}
+              tabIndex={!startOpen && focusedSquare === squareName ? 0 : -1}
             >
               {showFile && <span className="coord file">{file}</span>}
               {showRank && <span className="coord rank">{rank}</span>}

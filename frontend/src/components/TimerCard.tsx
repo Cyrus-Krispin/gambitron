@@ -2,9 +2,10 @@ interface TimerCardProps {
   timeMs: number;
   isActive: boolean;
   isLow?: boolean;
+  label?: string;
 }
 
-export function TimerCard({ timeMs, isActive, isLow }: TimerCardProps) {
+export function TimerCard({ timeMs, isActive, isLow, label = "Chess clock" }: TimerCardProps) {
   const total = Math.max(0, timeMs);
   const m = Math.floor(total / 60000);
   const s = Math.floor((total % 60000) / 1000);
@@ -25,5 +26,14 @@ export function TimerCard({ timeMs, isActive, isLow }: TimerCardProps) {
     .filter(Boolean)
     .join(" ");
 
-  return <div className={cls}>{display}</div>;
+  return (
+    <div
+      className={cls}
+      role="timer"
+      aria-live="off"
+      aria-label={`${label}: ${display}${isActive ? ", running" : ", stopped"}`}
+    >
+      {display}
+    </div>
+  );
 }
