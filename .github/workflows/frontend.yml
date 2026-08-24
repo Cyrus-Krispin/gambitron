@@ -62,10 +62,18 @@ jobs:
         working-directory: frontend
         run: npm run lint -- --max-warnings=0
 
-      - name: Audit production dependencies
+      - name: Audit dependencies
         working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --audit-level=high
 
       - name: Build
         working-directory: frontend
         run: npm run build
+
+      - name: Install browser for smoke tests
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        working-directory: frontend
+        run: npm run test:e2e

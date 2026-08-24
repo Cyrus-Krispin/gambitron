@@ -45,6 +45,8 @@ cd frontend && npm install && npm run dev
 
 Completed games and active-game recovery are stored privately in the browser. Remote history is intentionally disabled until an authenticated, owner-scoped storage design is available. Do not deploy `frontend/supabase/schema.sql`; it is retained only as legacy migration context.
 
+Production release, preview verification, monitoring, and rollback procedures are documented in [docs/production-runbook.md](docs/production-runbook.md).
+
 ## Engine Strength Gate
 
 The browser engine is checked against a Git baseline before it ships. The gate
