@@ -1,0 +1,26 @@
+import { describe, expect, it } from "vitest";
+import { calculateAIMove, evaluateQuiescenceForTesting } from "./wasmEngine";
+
+describe("calculateAIMove", () => {
+  it("searches legal check evasions instead of accepting a stand-pat score", async () => {
+    const result = await evaluateQuiescenceForTesting(
+      "7k/8/8/8/8/8/7r/7K w - - 0 1",
+      -2_000,
+      -1_000,
+    );
+
+    expect(Math.abs(result.score)).toBe(0);
+    expect(result.nodes).toBeGreaterThan(1);
+  });
+
+  it("reuses quiet-cutoff history for the original side to move", async () => {
+    const result = await calculateAIMove(
+      "rn1qkb1r/p1p1pppp/3p3n/1p6/1P1P1P2/1bP5/P3P1PP/RNBQKBNR w KQkq - 1 6",
+      { maxDepth: 4, timeLimitMs: 30_000, nodeLimit: 500_000 },
+    );
+
+    expect(result.move?.san).toBe("axb3");
+    expect(result.search?.depth).toBe(4);
+    expect(result.search?.nodes).toBeLessThanOrEqual(8_000);
+  });
+});

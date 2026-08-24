@@ -79,7 +79,7 @@ const MATE_BOUND = MATE_SCORE - 1_000;
 const INFINITY = 1_000_000_000;
 const MAX_SEARCH_MS = 450;
 const DEFAULT_MAX_DEPTH = 7;
-const MAX_QUIESCENCE_DEPTH = 7;
+const MAX_QUIESCENCE_DEPTH = 2;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
 
@@ -216,18 +216,24 @@ function quiescence(
   checkTime(ctx);
   if (game.isGameOver()) return evaluate(game, wasm);
 
-  const standPat = evaluate(game, wasm);
-  if (standPat >= beta) return standPat;
-  let best = Math.max(alpha, standPat);
-  if (depth >= MAX_QUIESCENCE_DEPTH) return best;
+  const inCheck = game.isCheck();
+  let best = alpha;
+  if (!inCheck) {
+    const standPat = evaluate(game, wasm);
+    if (standPat >= beta) return standPat;
+    best = Math.max(best, standPat);
+    if (depth >= MAX_QUIESCENCE_DEPTH) return best;
+  }
 
-  const moves = game.isCheck()
+  const moves = inCheck
     ? orderedMoves(game, ctx, ply)
     : orderedMoves(game, ctx, ply, undefined, true);
   for (const move of moves) {
     game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
     try {
-      const score = -quiescence(game, -beta, -best, ply + 1, depth + 1, wasm, ctx);
+      const score = depth >= MAX_QUIESCENCE_DEPTH
+        ? -evaluate(game, wasm)
+        : -quiescence(game, -beta, -best, ply + 1, depth + 1, wasm, ctx);
       if (score >= beta) return score;
       best = Math.max(best, score);
     } finally {
@@ -266,6 +272,9 @@ function negamax(
   const moves = orderedMoves(game, ctx, ply, entry?.bestMove);
   for (let index = 0; index < moves.length; index += 1) {
     const move = moves[index];
+    const quietHistoryKey = !move.captured && !move.promotion
+      ? historyKey(game, move)
+      : undefined;
     game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
     try {
       let score: number;
@@ -283,10 +292,12 @@ function negamax(
       }
       alpha = Math.max(alpha, score);
       if (alpha >= beta) {
-        if (!move.captured && !move.promotion) {
+        if (quietHistoryKey) {
           rememberKiller(ctx, ply, move);
-          const key = historyKey(game, move);
-          ctx.history.set(key, (ctx.history.get(key) ?? 0) + depth * depth);
+          ctx.history.set(
+            quietHistoryKey,
+            (ctx.history.get(quietHistoryKey) ?? 0) + depth * depth,
+          );
         }
         break;
       }
@@ -415,4 +426,26 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
     move: { from: played.from, to: played.to, san: played.san, promotion: played.promotion },
     search: diagnostics(ctx, bestScore),
   };
+}
+
+export async function evaluateQuiescenceForTesting(
+  fen: string,
+  alpha: number,
+  beta: number,
+): Promise<{ score: number; nodes: number }> {
+  const game = new Chess(fen);
+  const wasm = await loadWasmEngine();
+  const startedAt = performance.now();
+  const ctx: SearchContext = {
+    startedAt,
+    deadline: startedAt + 30_000,
+    nodes: 0,
+    completedDepth: 0,
+    timedOut: false,
+    tt: new Map(),
+    killers: new Map(),
+    history: new Map(),
+  };
+  const score = quiescence(game, alpha, beta, 0, 0, wasm, ctx);
+  return { score, nodes: ctx.nodes };
 }
