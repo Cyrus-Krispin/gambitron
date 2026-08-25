@@ -1,5 +1,8 @@
 name: Frontend WASM CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -18,14 +21,14 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 22
+          node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -36,6 +39,10 @@ jobs:
       - name: Verify local WASM game runtime
         working-directory: frontend
         run: npm run test:local-game
+
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm test
 
       - name: Compare WASM engine with pull request base
         if: github.event_name == 'pull_request'
@@ -53,8 +60,24 @@ jobs:
 
       - name: Lint
         working-directory: frontend
-        run: npm run lint
+        run: npm run lint -- --max-warnings=0
+
+      - name: Audit dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Verify deployment security configuration
+        working-directory: frontend
+        run: npm run test:config
 
       - name: Build
         working-directory: frontend
         run: npm run build
+
+      - name: Install browser for smoke tests
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        working-directory: frontend
+        run: npm run test:e2e

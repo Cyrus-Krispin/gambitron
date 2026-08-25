@@ -30,6 +30,18 @@ globalThis.window = {
   setTimeout,
   setInterval,
   clearInterval,
+  localStorage: {
+    getItem(key) {
+      return this.values.get(key) ?? null;
+    },
+    setItem(key, value) {
+      this.values.set(key, String(value));
+    },
+    removeItem(key) {
+      this.values.delete(key);
+    },
+    values: new Map(),
+  },
 };
 globalThis.WebSocket = class WebSocketShim {
   static CONNECTING = 0;
@@ -37,7 +49,8 @@ globalThis.WebSocket = class WebSocketShim {
   static CLOSED = 3;
 };
 
-const { createLocalGameSocket } = await import(pathToFileURL(outfile).href);
+const moduleUrl = pathToFileURL(outfile).href;
+const { createLocalGameSocket } = await import(`${moduleUrl}?instance=1`);
 
 function waitFor(messages, predicate, label, startIndex = 0) {
   const started = Date.now();
@@ -71,7 +84,8 @@ const socket1 = createLocalGameSocket((msg) => messages.push(msg), () => {
 const started = await waitFor(messages, (msg) => msg.type === "game_started", "game_started");
 socket1.close();
 
-const socket2 = createLocalGameSocket((msg) => messages.push(msg), () => {
+const reloadedModule = await import(`${moduleUrl}?instance=2`);
+const socket2 = reloadedModule.createLocalGameSocket((msg) => messages.push(msg), () => {
   socket2.send(JSON.stringify({ type: "subscribe", gameId: started.gameId }));
 });
 
@@ -102,6 +116,21 @@ for (let turn = 0; turn < 3; turn++) {
 
 socket2.close();
 
+const secondReload = await import(`${moduleUrl}?instance=3`);
+const recoveredMessages = [];
+const recoveredSocket = secondReload.createLocalGameSocket((msg) => recoveredMessages.push(msg), () => {
+  recoveredSocket.send(JSON.stringify({ type: "subscribe", gameId: started.gameId }));
+});
+const recovered = await waitFor(
+  recoveredMessages,
+  (msg) => msg.type === "game_state" && msg.gameId === started.gameId,
+  "game_state after page reload",
+);
+if (recovered.fen !== chess.fen() || recovered.moves?.length !== 6) {
+  throw new Error(`Reload did not restore the full game: ${JSON.stringify(recovered)}`);
+}
+recoveredSocket.close();
+
 const blackMessages = [];
 const blackSocket1 = createLocalGameSocket((msg) => blackMessages.push(msg), () => {
   blackSocket1.send(JSON.stringify({
@@ -112,10 +141,10 @@ const blackSocket1 = createLocalGameSocket((msg) => blackMessages.push(msg), () 
   }));
 });
 const blackStarted = await waitFor(blackMessages, (msg) => msg.type === "game_started", "black game_started");
-blackSocket1.send(JSON.stringify({ type: "request_ai_move", gameId: blackStarted.gameId, fen: blackStarted.fen }));
 blackSocket1.close();
 
-const blackSocket2 = createLocalGameSocket((msg) => blackMessages.push(msg), () => {
+const blackReload = await import(`${moduleUrl}?instance=4`);
+const blackSocket2 = blackReload.createLocalGameSocket((msg) => blackMessages.push(msg), () => {
   blackSocket2.send(JSON.stringify({ type: "subscribe", gameId: blackStarted.gameId }));
 });
 const openingAiMove = await waitFor(blackMessages, (msg) => msg.type === "ai_move", "opening ai_move after black reconnect");
@@ -124,4 +153,117 @@ if (!openingAiMove.updatedFen || !openingAiMove.fromSquare || !openingAiMove.toS
 }
 blackSocket2.close();
 
-console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}`);
+const terminalGameId = "terminal-player-move";
+const beforeMate = new Chess();
+const terminalMoves = ["f3", "e5", "g4"].map((san) => {
+  const move = beforeMate.move(san);
+  return {
+    color: move.color,
+    san: move.san,
+    from: move.from,
+    to: move.to,
+    captured: move.captured,
+    promotion: move.promotion,
+  };
+});
+window.localStorage.setItem("gambitron.activeGames.v1", JSON.stringify([{
+  gameId: terminalGameId,
+  fen: beforeMate.fen(),
+  playerColor: "black",
+  timeControlMs: 300000,
+  incrementMs: 0,
+  playerTimeMs: 290000,
+  aiTimeMs: 290000,
+  activeClock: "player",
+  lastTick: 0,
+  moves: terminalMoves,
+  persistedAt: Date.now(),
+}]));
+
+const terminalModule = await import(`${moduleUrl}?instance=5`);
+const terminalMessages = [];
+const terminalSocket = terminalModule.createLocalGameSocket((msg) => terminalMessages.push(msg), () => {
+  terminalSocket.send(JSON.stringify({ type: "subscribe", gameId: terminalGameId }));
+});
+await waitFor(terminalMessages, (msg) => msg.type === "game_state", "terminal setup state");
+const mate = beforeMate.move("Qh4#");
+terminalSocket.send(JSON.stringify({
+  type: "player_move",
+  gameId: terminalGameId,
+  fen: beforeMate.fen(),
+  san: mate.san,
+  from: mate.from,
+  to: mate.to,
+}));
+const terminalResult = await waitFor(
+  terminalMessages,
+  (msg) => msg.type === "game_ended",
+  "player terminal result",
+);
+if (terminalResult.result !== "0-1" || terminalResult.termination !== "checkmate") {
+  throw new Error(`Incorrect terminal result: ${JSON.stringify(terminalResult)}`);
+}
+terminalSocket.close();
+
+const terminalReloadModule = await import(`${moduleUrl}?instance=6`);
+const terminalReloadMessages = [];
+const terminalReloadSocket = terminalReloadModule.createLocalGameSocket(
+  (msg) => terminalReloadMessages.push(msg),
+  () => terminalReloadSocket.send(JSON.stringify({ type: "subscribe", gameId: terminalGameId })),
+);
+const terminalReloaded = await waitFor(
+  terminalReloadMessages,
+  (msg) => msg.type === "game_state",
+  "terminal game after reload",
+);
+if (
+  terminalReloaded.fen !== beforeMate.fen() ||
+  terminalReloaded.moves?.length !== 4 ||
+  terminalReloaded.result !== "0-1" ||
+  terminalReloaded.termination !== "checkmate"
+) {
+  throw new Error(`Terminal reload regressed: ${JSON.stringify(terminalReloaded)}`);
+}
+terminalReloadSocket.close();
+
+const timeoutMessages = [];
+const timeoutSocket = createLocalGameSocket((msg) => timeoutMessages.push(msg), () => {
+  timeoutSocket.send(JSON.stringify({
+    type: "start_game",
+    timeControlMs: 25,
+    incrementMs: 0,
+    playerColor: "white",
+  }));
+});
+const timeoutStarted = await waitFor(timeoutMessages, (msg) => msg.type === "game_started", "timeout game start");
+const timedOut = await waitFor(
+  timeoutMessages,
+  (msg) => msg.type === "game_ended" && msg.gameId === timeoutStarted.gameId,
+  "live timeout",
+);
+if (timedOut.result !== "0-1" || timedOut.termination !== "timeout") {
+  throw new Error(`Incorrect timeout: ${JSON.stringify(timedOut)}`);
+}
+timeoutSocket.close();
+
+const timeoutReloadModule = await import(`${moduleUrl}?instance=7`);
+const timeoutReloadMessages = [];
+const timeoutReloadSocket = timeoutReloadModule.createLocalGameSocket(
+  (msg) => timeoutReloadMessages.push(msg),
+  () => timeoutReloadSocket.send(JSON.stringify({ type: "subscribe", gameId: timeoutStarted.gameId })),
+);
+const timeoutReloaded = await waitFor(
+  timeoutReloadMessages,
+  (msg) => msg.type === "game_state" && msg.gameId === timeoutStarted.gameId,
+  "timeout after reload",
+);
+if (
+  timeoutReloaded.playerTimeMs !== 0 ||
+  timeoutReloaded.result !== "0-1" ||
+  timeoutReloaded.termination !== "timeout"
+) {
+  throw new Error(`Timeout reload regressed: ${JSON.stringify(timeoutReloaded)}`);
+}
+timeoutReloadSocket.close();
+
+console.log(`local game socket ok: white line through ${lastPlayerMove.san}; black starts with ${openingAiMove.san ?? `${openingAiMove.fromSquare}${openingAiMove.toSquare}`}; terminal reload preserved ${mate.san}; timeout reload preserved 0-1`);

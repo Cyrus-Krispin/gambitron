@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Chess, Square } from "chess.js";
 import { playMoveSound, playWinSound, playLossSound } from "@/utils/sounds";
 import { buildReplayMoves, saveLocalGame } from "@/lib/localHistory";
+import { getGameOutcome } from "@/lib/gameOutcome";
 import { calculateAIMove } from "@/lib/wasmEngine";
 import {
   createReconnectingSocket,
@@ -22,15 +23,6 @@ const VERTICAL_WHITE = ["8", "7", "6", "5", "4", "3", "2", "1"];
 const VERTICAL_BLACK = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-
-function computeResult(game: Chess): string {
-  if (!game.isGameOver()) return "*";
-  if (game.isCheckmate()) {
-    const winner = game.turn() === "w" ? "b" : "w";
-    return winner === "w" ? "1-0" : "0-1";
-  }
-  return "1/2-1/2";
-}
 
 function findKingSquares(game: Chess, color: "w" | "b"): string[] {
   const squares: string[] = [];
@@ -104,7 +96,14 @@ export function useGame(options?: UseGameOptions) {
   const [playerColor, setPlayerColor] = useState<PlayerColor>(initialColor ?? initialGameState?.playerColor ?? "white");
 
   const [fenInput, setFenInput] = useState("");
-  const [moveHistory, setMoveHistory] = useState<Array<{ captured?: string; color: "w" | "b"; from?: string; to?: string; san?: string }>>([]);
+  const [moveHistory, setMoveHistory] = useState<Array<{
+    captured?: string;
+    color: "w" | "b";
+    from?: string;
+    to?: string;
+    san?: string;
+    promotion?: "q" | "r" | "b" | "n";
+  }>>([]);
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin";
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -182,7 +181,7 @@ export function useGame(options?: UseGameOptions) {
           playMoveSound();
         }
         if (data.result && data.result !== "*") {
-          openEndgame(data.result, "checkmate");
+          openEndgame(data.result, data.termination ?? "draw");
         }
       } catch (err) {
         setErrorMessage((err as Error)?.message || "Failed to run local WASM engine");
@@ -280,15 +279,19 @@ export function useGame(options?: UseGameOptions) {
       setBoardState(chess.board());
       setSelectedSquare(null);
       setValidMoves([]);
-      setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to }]);
+      setMoveHistory((prev) => [
+        ...prev,
+        { captured, color: playerTurn, from, to, san: move.san, promotion: piece },
+      ]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
-      if (chess.isGameOver()) {
-        openEndgame(computeResult(chess), "checkmate");
-        return;
-      }
       const fen = chess.fen();
       sendPromotionMove(fen, from, to, piece, captured);
+      if (chess.isGameOver()) {
+        const outcome = getGameOutcome(chess);
+        openEndgame(outcome.result, outcome.termination ?? "draw");
+        return;
+      }
     },
     [chess, pendingPromotionFrom, pendingPromotionTo, playerHasMoved, openEndgame, sendPromotionMove, playerTurn]
   );
@@ -361,12 +364,13 @@ export function useGame(options?: UseGameOptions) {
       setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
-      if (chess.isGameOver()) {
-        openEndgame(computeResult(chess), "checkmate");
-        return;
-      }
       const fen = chess.fen();
       sendPlayerMove(fen, san, from, to, captured);
+      if (chess.isGameOver()) {
+        const outcome = getGameOutcome(chess);
+        openEndgame(outcome.result, outcome.termination ?? "draw");
+        return;
+      }
     },
     [
       chess,
@@ -441,12 +445,13 @@ export function useGame(options?: UseGameOptions) {
       setMoveHistory((prev) => [...prev, { captured, color: playerTurn, from, to, san }]);
       if (!playerHasMoved) setPlayerHasMoved(true);
       playMoveSound();
-      if (chess.isGameOver()) {
-        openEndgame(computeResult(chess), "checkmate");
-        return;
-      }
       const fen = chess.fen();
       sendPlayerMove(fen, san, from, to, captured);
+      if (chess.isGameOver()) {
+        const outcome = getGameOutcome(chess);
+        openEndgame(outcome.result, outcome.termination ?? "draw");
+        return;
+      }
     },
     [
       chess,
@@ -517,6 +522,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            setMoveHistory(m.moves ?? []);
             syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
@@ -545,7 +551,7 @@ export function useGame(options?: UseGameOptions) {
               }
             }
             if (m.result && m.result !== "*") {
-              openEndgame(m.result, "checkmate");
+              openEndgame(m.result, m.termination ?? "draw");
             }
           } else if (msg.type === "game_ended") {
             const m = msg as GameEndedMessage;
@@ -640,6 +646,7 @@ export function useGame(options?: UseGameOptions) {
             playerColorRef.current = m.playerColor;
             setInitialTimeMs(m.timeControlMs);
             setPlayerColor(m.playerColor);
+            setMoveHistory(m.moves ?? []);
             syncServerTimes(m.playerTimeMs, m.aiTimeMs);
             if (m.fen) {
               try {
@@ -674,7 +681,7 @@ export function useGame(options?: UseGameOptions) {
               }
             }
             if (m.result && m.result !== "*") {
-              openEndgame(m.result, "checkmate");
+              openEndgame(m.result, m.termination ?? "draw");
             }
           } else if (msg.type === "game_ended") {
             const m = msg as GameEndedMessage;
@@ -695,7 +702,16 @@ export function useGame(options?: UseGameOptions) {
             openEndgame(m.result, m.termination);
           } else if (msg.type === "error") {
             setAiThinking(false);
-            setErrorMessage((msg as ErrorMessage).message);
+            const message = (msg as ErrorMessage).message;
+            if (message.includes("no longer available")) {
+              currentGameIdRef.current = null;
+              setGameStarted(false);
+              setStartOpen(true);
+              chess.reset();
+              setBoardState(chess.board());
+              setMoveHistory([]);
+            }
+            setErrorMessage(message);
             setErrorOpen(true);
           }
         },
@@ -727,7 +743,8 @@ export function useGame(options?: UseGameOptions) {
         setPlayerHasMoved(true);
       }
       if (chess.isGameOver() && !gameEnded) {
-        openEndgame(computeResult(chess), chess.isCheckmate() ? "checkmate" : "draw");
+        const outcome = getGameOutcome(chess);
+        openEndgame(outcome.result, outcome.termination ?? "draw");
       }
       if (callAI && !chess.isGameOver() && !gameEnded && isAdmin && chess.turn() === aiTurn) {
         setAiThinking(true);
@@ -739,7 +756,7 @@ export function useGame(options?: UseGameOptions) {
             playMoveSound();
           }
           if (data.result && data.result !== "*") {
-            openEndgame(data.result, "checkmate");
+            openEndgame(data.result, data.termination ?? "draw");
           }
         } catch (err) {
           setErrorMessage((err as Error)?.message || "Failed to run local WASM engine");
@@ -806,7 +823,7 @@ export function useGame(options?: UseGameOptions) {
       connectToExistingGame(gameId, initialGameState ?? undefined);
       return () => closeSocket();
     }
-  }, [gameId, connectToExistingGame, initialGameState?.fen, closeSocket]);
+  }, [gameId, connectToExistingGame, initialGameState, closeSocket]);
 
   useEffect(() => {
     if (!gameEnded || !endgameResult || savedGameIdRef.current || moveHistory.length === 0) return;

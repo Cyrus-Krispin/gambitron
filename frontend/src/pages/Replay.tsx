@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useHistory } from "react-router-dom";
 import { Chess } from "chess.js";
 import { ChessBoard } from "@/components/ChessBoard";
 import { getSavedGame, type LocalGameRecord } from "@/lib/localHistory";
@@ -41,6 +41,7 @@ function buildMovePairs(moves: MoveInfo[]) {
 
 export default function Replay() {
   const { gameId } = useParams<{ gameId: string }>();
+  const history = useHistory();
   const [game, setGame] = useState<LocalGameRecord | null>(null);
   const [moves, setMoves] = useState<MoveInfo[]>([]);
   const [currentPly, setCurrentPly] = useState(0);
@@ -94,11 +95,12 @@ export default function Replay() {
         case "ArrowRight": e.preventDefault(); goForward(); break;
         case "Home": e.preventDefault(); goToStart(); break;
         case "End": e.preventDefault(); goToEnd(); break;
+        case "Escape": e.preventDefault(); history.push("/history"); break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [loading, error, goBack, goForward, goToStart, goToEnd]);
+  }, [loading, error, goBack, goForward, goToStart, goToEnd, history]);
 
   const movePairs = useMemo(() => buildMovePairs(moves), [moves]);
 
@@ -142,6 +144,7 @@ export default function Replay() {
 
   return (
     <div className="replay fade-in">
+      <h1 className="sr-only">Replay game against Gambitron</h1>
       {/* Board */}
       <div className="board-wrap">
         <div className="player-strip">
@@ -175,11 +178,11 @@ export default function Replay() {
             onDragEnd={() => {}}
           />
           <div className="replay-controls">
-            <button type="button" onClick={goToStart} title="Start (Home)">⏮</button>
-            <button type="button" onClick={goBack} title="Prev (←)">‹</button>
-            <span className="pos">{currentPly === 0 ? "Start" : `${currentPly} / ${moves.length}`}</span>
-            <button type="button" onClick={goForward} title="Next (→)">›</button>
-            <button type="button" onClick={goToEnd} title="End (End)">⏭</button>
+            <button type="button" onClick={goToStart} title="Start (Home)" aria-label="Go to start" disabled={currentPly === 0}>⏮</button>
+            <button type="button" onClick={goBack} title="Previous (←)" aria-label="Previous move" disabled={currentPly === 0}>‹</button>
+            <span className="pos" role="status" aria-live="polite">{currentPly === 0 ? "Start" : `${currentPly} / ${moves.length}`}</span>
+            <button type="button" onClick={goForward} title="Next (→)" aria-label="Next move" disabled={currentPly === moves.length}>›</button>
+            <button type="button" onClick={goToEnd} title="End (End)" aria-label="Go to end" disabled={currentPly === moves.length}>⏭</button>
           </div>
         </div>
 
@@ -254,20 +257,26 @@ export default function Replay() {
               {movePairs.map((pair) => (
                 <div key={pair.num} style={{ display: "contents" }}>
                   <span className="num">{pair.num}.</span>
-                  <span
+                  <button
+                    type="button"
                     className={"mv" + (pair.white && currentPly === pair.white.ply ? " current" : "")}
                     onClick={() => pair.white && setCurrentPly(pair.white.ply)}
-                    style={{ cursor: pair.white ? "pointer" : "default" }}
+                    disabled={!pair.white}
+                    aria-label={pair.white ? `Move ${pair.num}, white ${pair.white.san}` : `Move ${pair.num}, no white move`}
+                    aria-current={pair.white && currentPly === pair.white.ply ? "step" : undefined}
                   >
                     {pair.white?.san ?? ""}
-                  </span>
-                  <span
+                  </button>
+                  <button
+                    type="button"
                     className={"mv" + (pair.black && currentPly === pair.black.ply ? " current" : "")}
                     onClick={() => pair.black && setCurrentPly(pair.black.ply)}
-                    style={{ cursor: pair.black ? "pointer" : "default" }}
+                    disabled={!pair.black}
+                    aria-label={pair.black ? `Move ${pair.num}, black ${pair.black.san}` : `Move ${pair.num}, no black move`}
+                    aria-current={pair.black && currentPly === pair.black.ply ? "step" : undefined}
                   >
                     {pair.black?.san ?? ""}
-                  </span>
+                  </button>
                 </div>
               ))}
             </div>

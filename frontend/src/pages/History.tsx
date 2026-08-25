@@ -69,7 +69,7 @@ export default function History() {
 
   return (
     <div className="history fade-in">
-      <h2>History</h2>
+      <h1>History</h1>
 
       {loading && (
         <div

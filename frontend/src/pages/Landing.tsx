@@ -38,6 +38,7 @@ export default function Landing() {
 
   return (
     <div className="lobby fade-in">
+      <h1 className="sr-only">Play chess against Gambitron</h1>
       <section className="lobby-panel" aria-label="Start game">
         <div className="time-stepper" aria-label="Time control">
           <button
@@ -74,6 +75,7 @@ export default function Landing() {
             className={"side-cell" + (side === "w" ? " active" : "")}
             onClick={() => setSide("w")}
             type="button"
+            aria-pressed={side === "w"}
           >
             <span className="side-piece">♙</span>
             <span>White</span>
@@ -82,6 +84,7 @@ export default function Landing() {
             className={"side-cell" + (side === "rand" ? " active" : "")}
             onClick={() => setSide("rand")}
             type="button"
+            aria-pressed={side === "rand"}
           >
             <Shuffle size={18} />
             <span>Random</span>
@@ -90,6 +93,7 @@ export default function Landing() {
             className={"side-cell" + (side === "b" ? " active" : "")}
             onClick={() => setSide("b")}
             type="button"
+            aria-pressed={side === "b"}
           >
             <span className="side-piece">♟</span>
             <span>Black</span>

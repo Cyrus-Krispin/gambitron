@@ -80,6 +80,16 @@ export interface GameStateMessage {
   playerColor: "white" | "black";
   result?: string;
   termination?: string;
+  moves?: GameMoveMessage[];
+}
+
+export interface GameMoveMessage {
+  captured?: string;
+  color: "w" | "b";
+  from?: string;
+  to?: string;
+  san?: string;
+  promotion?: "q" | "r" | "b" | "n";
 }
 
 export interface AIMoveMessage {
@@ -90,6 +100,7 @@ export interface AIMoveMessage {
   fromSquare?: string;
   toSquare?: string;
   captured?: string;
+  termination?: string;
 }
 
 export interface GameEndedMessage {

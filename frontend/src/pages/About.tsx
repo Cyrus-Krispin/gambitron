@@ -4,7 +4,7 @@ const FACTS = [
   { key: "Engine", val: "Minimax + alpha beta" },
   { key: "Runtime", val: "WebAssembly + local socket" },
   { key: "Board", val: "React + chess.js" },
-  { key: "Archive", val: "Supabase + local fallback" },
+  { key: "Archive", val: "Private on-device history" },
 ];
 
 const LINKS = [
@@ -19,7 +19,7 @@ export default function About() {
       <section className="about-minimal">
         <div>
           <p className="eyebrow">About</p>
-          <h2>Gambitron</h2>
+          <h1>Gambitron</h1>
         </div>
 
         <div className="fact-list">

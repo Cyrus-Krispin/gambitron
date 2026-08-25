@@ -4,6 +4,7 @@ import { ChessBoard } from "@/components/ChessBoard";
 import { CaptureDisplay } from "@/components/CaptureDisplay";
 import { TimerCard } from "@/components/TimerCard";
 import { Dialogs } from "@/components/Dialogs";
+import * as Dialog from "@radix-ui/react-dialog";
 
 const VALID_MINUTES = [1, 2, 3, 5, 10, 15, 30];
 
@@ -126,6 +127,7 @@ export default function Play() {
 
   return (
     <div className="game fade-in">
+      <h1 className="sr-only">Game against Gambitron</h1>
       {/* Left: board area */}
       <div className="board-wrap">
         {/* Opponent strip */}
@@ -145,6 +147,7 @@ export default function Play() {
             timeMs={botTimeMs}
             isActive={isBotActive}
             isLow={botLow}
+            label="Gambitron clock"
           />
         </div>
 
@@ -170,32 +173,16 @@ export default function Play() {
           />
 
           {/* Color picker overlay when startOpen */}
-          {game.startOpen && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "oklch(0.105 0.014 285 / 0.86)",
-                backdropFilter: "blur(8px)",
-                gap: 16,
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 10,
-                  letterSpacing: "0",
-                  textTransform: "uppercase",
-                  color: "var(--ink-faint)",
-                  marginBottom: 8,
-                }}
+          <Dialog.Root open={game.startOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="modal-overlay" />
+              <Dialog.Content
+                className="modal grain"
+                onEscapeKeyDown={(event) => event.preventDefault()}
+                onPointerDownOutside={(event) => event.preventDefault()}
               >
-                Play as
-              </div>
+              <Dialog.Title style={{ fontSize: 32, marginBottom: 4 }}>Choose a side</Dialog.Title>
+              <Dialog.Description className="reason">Start a new game as white or black</Dialog.Description>
               <div style={{ display: "flex", gap: 1, background: "var(--line-soft)" }}>
                 {(["white", "black"] as const).map((c) => (
                   <button
@@ -223,8 +210,9 @@ export default function Play() {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         </div>
 
         {/* Your strip */}
@@ -245,6 +233,7 @@ export default function Play() {
             timeMs={myTimeMs}
             isActive={isMyActive}
             isLow={myLow}
+            label="Your clock"
           />
         </div>
       </div>
@@ -255,6 +244,9 @@ export default function Play() {
           {!game.startOpen && (
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line-soft)" }}>
               <div
+                role="status"
+                aria-live={game.gameEnded ? "assertive" : "polite"}
+                aria-atomic="true"
                 style={{
                   fontFamily: "var(--serif)",
                   fontSize: 15,

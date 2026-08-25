@@ -5,4 +5,7 @@ server-key.pem
 .gstack/
 
 # Local environment overrides
-frontend/.env.local
+.env*
+!.env.example
+!**/.env.example
+*.key

@@ -34,10 +34,12 @@ export default function Game() {
           <TimerCard
             timeMs={game.aiTimeMs}
             isActive={!game.isPlayersTurn}
+            label="Gambitron clock"
           />
           <TimerCard
             timeMs={game.playerTimeMs}
             isActive={game.isPlayersTurn}
+            label="Player clock"
           />
         </div>
       )}
@@ -85,10 +87,12 @@ export default function Game() {
           <TimerCard
             timeMs={game.aiTimeMs}
             isActive={!game.isPlayersTurn}
+            label="Gambitron clock"
           />
           <TimerCard
             timeMs={game.playerTimeMs}
             isActive={game.isPlayersTurn}
+            label="Player clock"
           />
         </aside>
       )}

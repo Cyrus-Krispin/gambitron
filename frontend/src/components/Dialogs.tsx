@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import type { PlayerColor } from "@/hooks/useGame";
 
 interface DialogsProps {
@@ -31,25 +31,14 @@ export function Dialogs({
   onRetry,
   hasRetry,
 }: DialogsProps) {
-  const [errorExiting, setErrorExiting] = useState(false);
-
-  useEffect(() => {
-    if (errorOpen) {
-      const t = setTimeout(() => {
-        setErrorExiting(true);
-        setTimeout(() => { onErrorClose(); setErrorExiting(false); }, 200);
-      }, 6000);
-      return () => clearTimeout(t);
-    }
-  }, [errorOpen, onErrorClose]);
-
   return (
     <>
-      {promotionOpen && (
-        <div className="modal-overlay" onClick={onPromotionClose}>
-          <div className="modal grain" onClick={(e) => e.stopPropagation()} style={{ paddingBottom: 28 }}>
-            <h3 style={{ fontSize: 32, marginBottom: 4 }}>Promote</h3>
-            <div className="reason">Choose a piece</div>
+      <Dialog.Root open={promotionOpen} onOpenChange={(open) => !open && onPromotionClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-overlay" />
+          <Dialog.Content className="modal grain" style={{ paddingBottom: 28 }}>
+            <Dialog.Title style={{ fontSize: 32, marginBottom: 4 }}>Promote</Dialog.Title>
+            <Dialog.Description className="reason">Choose a piece</Dialog.Description>
             <div className="promo-grid">
               {PROMO_PIECES.map(({ piece, label }) => (
                 <button
@@ -66,14 +55,15 @@ export function Dialogs({
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {errorOpen && (
         <div
           className="error-toast"
-          style={{ opacity: errorExiting ? 0 : 1, transition: "opacity 300ms" }}
+          role="alert"
+          aria-live="assertive"
         >
           <span className="toast-msg">{errorMessage}</span>
           {hasRetry && (
