@@ -91,6 +91,10 @@ const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
 const MIN_SEARCH_MS = 750;
 const MAX_SEARCH_ALLOCATION_MS = 4_500;
+const CASTLED_KING_BONUS = 45;
+const CASTLING_RIGHT_BONUS = 12;
+const LOST_CASTLING_PENALTY = 35;
+const EARLY_KING_MOVE_PENALTY = 45;
 
 let enginePromise: Promise<WasmEngineExports> | null = null;
 
@@ -160,7 +164,8 @@ function positionalScore(game: Chess): number {
   const kings: Partial<Record<"w" | "b", { rank: number; file: number; relativeRank: number }>> = {};
   let whiteUndevelopedMinors = 0;
   let blackUndevelopedMinors = 0;
-  const fullmoveNumber = Number(game.fen().split(" ")[5]);
+  const [, , castlingRights, , , fullmoveText] = game.fen().split(" ");
+  const fullmoveNumber = Number(fullmoveText);
 
   for (let rank = 0; rank < board.length; rank += 1) {
     for (let file = 0; file < board[rank].length; file += 1) {
@@ -211,8 +216,19 @@ function positionalScore(game: Chess): number {
 
     const king = kings[color];
     if (king && fullmoveNumber <= 20) {
-      if (king.relativeRank === 0 && (king.file === 2 || king.file === 6)) score += sign * 30;
-      else if (king.relativeRank > 0 || king.file === 3 || king.file === 4) score -= sign * 25;
+      const isCastled = king.relativeRank === 0 && (king.file === 2 || king.file === 6);
+      const isOnStartingSquare = king.relativeRank === 0 && king.file === 4;
+      const availableCastlingRights = color === "w"
+        ? Number(castlingRights.includes("K")) + Number(castlingRights.includes("Q"))
+        : Number(castlingRights.includes("k")) + Number(castlingRights.includes("q"));
+
+      if (isCastled) score += sign * CASTLED_KING_BONUS;
+      else if (!isOnStartingSquare) score -= sign * EARLY_KING_MOVE_PENALTY;
+      else if (availableCastlingRights > 0) {
+        score += sign * availableCastlingRights * CASTLING_RIGHT_BONUS;
+      } else {
+        score -= sign * LOST_CASTLING_PENALTY;
+      }
 
       const shieldRank = king.rank + (color === "w" ? -1 : 1);
       for (let file = king.file - 1; file <= king.file + 1; file += 1) {
