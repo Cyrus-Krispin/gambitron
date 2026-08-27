@@ -1,10 +1,21 @@
 import { Chess } from "chess.js";
 import { describe, expect, it } from "vitest";
 
-import { parseStoredGame, rebuildPositionCounts } from "./localGameSocket";
+import { engineOptionsForState, parseStoredGame, rebuildPositionCounts } from "./localGameSocket";
 import type { GameMoveMessage } from "./websocket";
 
 describe("active local game state", () => {
+  it("passes the live AI clock and repetition history into search", () => {
+    const positionCounts = { "position-key": 2 };
+    const options = engineOptionsForState({
+      aiTimeMs: 42_000,
+      incrementMs: 2_000,
+      positionCounts,
+    });
+
+    expect(options).toEqual({ remainingTimeMs: 42_000, incrementMs: 2_000, positionCounts });
+  });
+
   it("rebuilds threefold repetition counts from persisted moves", () => {
     const moves: GameMoveMessage[] = [
       { color: "w", san: "Nf3" }, { color: "b", san: "Nf6" },

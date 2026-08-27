@@ -171,7 +171,10 @@ export function useGame(options?: UseGameOptions) {
       setAiThinking(true);
       setLastFenForRetry(fen);
       try {
-        const data = await calculateAIMove(fen);
+        const data = await calculateAIMove(fen, {
+          remainingTimeMs: aiTimeMs,
+          incrementMs: selectedIncrementMs,
+        });
         if (data.updated_fen) {
           const moveData = data.move || {};
           setMoveHistory((prev) => [...prev, { captured: data.captured, color: aiTurn, from: moveData.from, to: moveData.to, san: moveData.san }]);
@@ -190,7 +193,7 @@ export function useGame(options?: UseGameOptions) {
         setAiThinking(false);
       }
     },
-    [chess, openEndgame, aiTurn]
+    [chess, openEndgame, aiTurn, aiTimeMs, selectedIncrementMs]
   );
 
   const sendPlayerMove = useCallback(
@@ -749,7 +752,10 @@ export function useGame(options?: UseGameOptions) {
       if (callAI && !chess.isGameOver() && !gameEnded && isAdmin && chess.turn() === aiTurn) {
         setAiThinking(true);
         try {
-          const data = await calculateAIMove(fen);
+          const data = await calculateAIMove(fen, {
+            remainingTimeMs: aiTimeMs,
+            incrementMs: selectedIncrementMs,
+          });
           if (data.updated_fen) {
             chess.load(data.updated_fen);
             setBoardState(chess.board());
@@ -766,7 +772,7 @@ export function useGame(options?: UseGameOptions) {
         }
       }
     },
-    [chess, isAdmin, gameEnded, openEndgame, aiTurn]
+    [chess, isAdmin, gameEnded, openEndgame, aiTurn, aiTimeMs, selectedIncrementMs]
   );
 
   const handleNewGame = useCallback(() => {

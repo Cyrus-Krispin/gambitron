@@ -1,5 +1,6 @@
 import { Chess, type Move, type PieceSymbol, type Square } from "chess.js";
 import { getGameOutcome } from "./gameOutcome";
+import { getOpeningBookMove } from "./openingBook";
 
 export interface SearchDiagnostics {
   depth: number;
@@ -28,6 +29,9 @@ export interface EngineOptions {
   maxDepth?: number;
   timeLimitMs?: number;
   nodeLimit?: number;
+  remainingTimeMs?: number;
+  incrementMs?: number;
+  positionCounts?: Readonly<Record<string, number>>;
 }
 
 type WasmEngineExports = {
@@ -45,6 +49,7 @@ type TranspositionEntry = {
 
 type SearchContext = {
   deadline: number;
+  minimumDepth: number;
   nodeLimit?: number;
   startedAt: number;
   nodes: number;
@@ -53,6 +58,7 @@ type SearchContext = {
   tt: Map<string, TranspositionEntry>;
   killers: Map<number, string[]>;
   history: Map<string, number>;
+  repetitionCounts: Map<string, number>;
 };
 
 class SearchTimeout extends Error {}
@@ -77,11 +83,14 @@ const PIECE_VALUES: Record<PieceSymbol, number> = {
 const MATE_SCORE = 100_000;
 const MATE_BOUND = MATE_SCORE - 1_000;
 const INFINITY = 1_000_000_000;
-const MAX_SEARCH_MS = 450;
+const MAX_SEARCH_MS = 2_000;
 const DEFAULT_MAX_DEPTH = 7;
-const MAX_QUIESCENCE_DEPTH = 2;
+const MINIMUM_COMPLETED_DEPTH = 3;
+const MAX_QUIESCENCE_DEPTH = 4;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
+const MIN_SEARCH_MS = 750;
+const MAX_SEARCH_ALLOCATION_MS = 4_500;
 
 let enginePromise: Promise<WasmEngineExports> | null = null;
 
@@ -94,6 +103,32 @@ async function loadWasmEngine(): Promise<WasmEngineExports> {
 
 function moveKey(move: Move): string {
   return `${move.from}${move.to}${move.promotion ?? ""}`;
+}
+
+function positionKey(game: Chess): string {
+  return game.fen().split(" ").slice(0, 4).join(" ");
+}
+
+function transpositionKey(game: Chess): string {
+  return game.fen().split(" ").slice(0, 5).join(" ");
+}
+
+function repetitionCount(game: Chess, ctx: SearchContext): number {
+  return ctx.repetitionCounts.get(positionKey(game)) ?? 0;
+}
+
+function playSearchMove(game: Chess, move: Move, ctx: SearchContext): void {
+  game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+  const key = positionKey(game);
+  ctx.repetitionCounts.set(key, (ctx.repetitionCounts.get(key) ?? 0) + 1);
+}
+
+function undoSearchMove(game: Chess, ctx: SearchContext): void {
+  const key = positionKey(game);
+  const count = ctx.repetitionCounts.get(key) ?? 0;
+  if (count <= 1) ctx.repetitionCounts.delete(key);
+  else ctx.repetitionCounts.set(key, count - 1);
+  game.undo();
 }
 
 function historyKey(game: Chess, move: Move): string {
@@ -120,6 +155,12 @@ function positionalScore(game: Chess): number {
   const board = game.board();
   let whiteBishops = 0;
   let blackBishops = 0;
+  const pawnFiles = { w: Array<number>(8).fill(0), b: Array<number>(8).fill(0) };
+  const pawns: Array<{ color: "w" | "b"; rank: number; file: number; relativeRank: number }> = [];
+  const kings: Partial<Record<"w" | "b", { rank: number; file: number; relativeRank: number }>> = {};
+  let whiteUndevelopedMinors = 0;
+  let blackUndevelopedMinors = 0;
+  const fullmoveNumber = Number(game.fen().split(" ")[5]);
 
   for (let rank = 0; rank < board.length; rank += 1) {
     for (let file = 0; file < board[rank].length; file += 1) {
@@ -131,34 +172,91 @@ function positionalScore(game: Chess): number {
       const relativeRank = piece.color === "w" ? rankFromWhite : 7 - rankFromWhite;
       const centerDistance = Math.abs(file - 3.5) + Math.abs(rank - 3.5);
 
-      if (piece.type === "p") score += sign * (relativeRank * 7 - Math.floor(centerDistance * 2));
+      if (piece.type === "p") {
+        score += sign * (relativeRank * 5 - Math.floor(centerDistance * 2));
+        pawnFiles[piece.color][file] += 1;
+        pawns.push({ color: piece.color, rank, file, relativeRank });
+      }
       if (piece.type === "n" || piece.type === "b") score += sign * Math.round(18 - centerDistance * 4);
       if (piece.type === "r" && relativeRank === 6) score += sign * 18;
       if (piece.type === "b") {
         if (piece.color === "w") whiteBishops += 1;
         else blackBishops += 1;
       }
+      if (piece.type === "k") kings[piece.color] = { rank, file, relativeRank };
+      if (fullmoveNumber <= 12 && (piece.type === "n" || piece.type === "b")) {
+        const onStartingRank = relativeRank === 0;
+        const onStartingFile = piece.type === "n" ? file === 1 || file === 6 : file === 2 || file === 5;
+        if (onStartingRank && onStartingFile) {
+          if (piece.color === "w") whiteUndevelopedMinors += 1;
+          else blackUndevelopedMinors += 1;
+        }
+      }
     }
   }
 
   if (whiteBishops >= 2) score += 35;
   if (blackBishops >= 2) score -= 35;
+  if (fullmoveNumber <= 12) score += (blackUndevelopedMinors - whiteUndevelopedMinors) * 8;
+
+  for (const color of ["w", "b"] as const) {
+    const sign = color === "w" ? 1 : -1;
+    for (let file = 0; file < 8; file += 1) {
+      const count = pawnFiles[color][file];
+      if (count > 1) score -= sign * (count - 1) * 18;
+      if (count > 0 && (pawnFiles[color][file - 1] ?? 0) === 0 && (pawnFiles[color][file + 1] ?? 0) === 0) {
+        score -= sign * count * 12;
+      }
+    }
+
+    const king = kings[color];
+    if (king && fullmoveNumber <= 20) {
+      if (king.relativeRank === 0 && (king.file === 2 || king.file === 6)) score += sign * 30;
+      else if (king.relativeRank > 0 || king.file === 3 || king.file === 4) score -= sign * 25;
+
+      const shieldRank = king.rank + (color === "w" ? -1 : 1);
+      for (let file = king.file - 1; file <= king.file + 1; file += 1) {
+        const shield = board[shieldRank]?.[file];
+        if (shield?.type === "p" && shield.color === color) score += sign * 6;
+      }
+    }
+  }
+
+  for (const pawn of pawns) {
+    const opponent = pawn.color === "w" ? "b" : "w";
+    const blockedByOpponentPawn = pawns.some((other) => (
+      other.color === opponent
+      && Math.abs(other.file - pawn.file) <= 1
+      && (pawn.color === "w" ? other.rank < pawn.rank : other.rank > pawn.rank)
+    ));
+    if (!blockedByOpponentPawn) score += (pawn.color === "w" ? 1 : -1) * pawn.relativeRank * 4;
+  }
   return score;
 }
 
-function evaluate(game: Chess, wasm: WasmEngineExports): number {
-  if (game.isCheckmate()) return -MATE_SCORE;
+function evaluate(game: Chess, wasm: WasmEngineExports, ply = 0): number {
+  if (game.isCheckmate()) return -MATE_SCORE + ply;
   if (game.isDraw()) return 0;
 
   const whiteScore = materialScore(game, wasm) + positionalScore(game);
-  const mobility = game.moves().length * 2;
-  return game.turn() === "w" ? whiteScore + mobility : -whiteScore + mobility;
+  return game.turn() === "w" ? whiteScore : -whiteScore;
+}
+
+function allocateSearchTime(remainingTimeMs?: number, incrementMs = 0): number {
+  if (remainingTimeMs === undefined) return MAX_SEARCH_MS;
+  const desired = remainingTimeMs / 100 + incrementMs * 0.5;
+  const allocation = Math.min(MAX_SEARCH_ALLOCATION_MS, Math.max(MIN_SEARCH_MS, desired));
+  return Math.max(100, Math.min(allocation, remainingTimeMs - 500));
 }
 
 function checkTime(ctx: SearchContext): void {
   ctx.nodes += 1;
   if (ctx.nodeLimit !== undefined && ctx.nodes >= ctx.nodeLimit) throw new SearchTimeout();
-  if ((ctx.nodes === 1 || ctx.nodes % TIME_CHECK_INTERVAL === 0) && performance.now() >= ctx.deadline) {
+  if (
+    ctx.completedDepth >= ctx.minimumDepth
+    && (ctx.nodes === 1 || ctx.nodes % TIME_CHECK_INTERVAL === 0)
+    && performance.now() >= ctx.deadline
+  ) {
     throw new SearchTimeout();
   }
 }
@@ -214,12 +312,13 @@ function quiescence(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
-  if (game.isGameOver()) return evaluate(game, wasm);
+  if (repetitionCount(game, ctx) >= 3) return 0;
+  if (game.isGameOver()) return evaluate(game, wasm, ply);
 
   const inCheck = game.isCheck();
   let best = alpha;
   if (!inCheck) {
-    const standPat = evaluate(game, wasm);
+    const standPat = evaluate(game, wasm, ply);
     if (standPat >= beta) return standPat;
     best = Math.max(best, standPat);
     if (depth >= MAX_QUIESCENCE_DEPTH) return best;
@@ -229,15 +328,15 @@ function quiescence(
     ? orderedMoves(game, ctx, ply)
     : orderedMoves(game, ctx, ply, undefined, true);
   for (const move of moves) {
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       const score = depth >= MAX_QUIESCENCE_DEPTH
-        ? -evaluate(game, wasm)
+        ? -evaluate(game, wasm, ply + 1)
         : -quiescence(game, -beta, -best, ply + 1, depth + 1, wasm, ctx);
       if (score >= beta) return score;
       best = Math.max(best, score);
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
   return best;
@@ -253,13 +352,15 @@ function negamax(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
-  if (game.isGameOver()) return evaluate(game, wasm);
+  if (repetitionCount(game, ctx) >= 3) return 0;
+  if (game.isGameOver()) return evaluate(game, wasm, ply);
   if (depth <= 0) return quiescence(game, alpha, beta, ply, 0, wasm, ctx);
 
   const alphaOriginal = alpha;
   const betaOriginal = beta;
-  const position = game.fen();
-  const entry = ctx.tt.get(position);
+  const position = transpositionKey(game);
+  const canUseTransposition = repetitionCount(game, ctx) <= 1;
+  const entry = canUseTransposition ? ctx.tt.get(position) : undefined;
   if (entry && entry.depth >= depth) {
     if (entry.flag === "exact") return entry.score;
     if (entry.flag === "lower") alpha = Math.max(alpha, entry.score);
@@ -275,7 +376,7 @@ function negamax(
     const quietHistoryKey = !move.captured && !move.promotion
       ? historyKey(game, move)
       : undefined;
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       let score: number;
       if (index === 0) {
@@ -302,12 +403,14 @@ function negamax(
         break;
       }
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
 
   const flag: Bound = bestScore <= alphaOriginal ? "upper" : bestScore >= betaOriginal ? "lower" : "exact";
-  if (bestMove) ctx.tt.set(position, { depth, score: bestScore, flag, bestMove: moveKey(bestMove) });
+  if (bestMove && canUseTransposition && Math.abs(bestScore) < MATE_BOUND) {
+    ctx.tt.set(position, { depth, score: bestScore, flag, bestMove: moveKey(bestMove) });
+  }
   return bestScore;
 }
 
@@ -323,7 +426,7 @@ function searchRoot(
   let bestScore = -INFINITY;
   let bestMove: Move | undefined;
   for (const [index, move] of orderedMoves(game, ctx, 0, previousBest).entries()) {
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       let score: number;
       if (index === 0) {
@@ -339,7 +442,7 @@ function searchRoot(
       alpha = Math.max(alpha, score);
       if (alpha >= beta) break;
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
   return { score: bestScore, move: bestMove };
@@ -380,12 +483,37 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const game = new Chess(fen);
   const current = getGameOutcome(game);
   if (current.result !== "*") return current;
+  if ((options.positionCounts?.[positionKey(game)] ?? 0) >= 3) {
+    return { result: "1/2-1/2", termination: "threefold repetition" };
+  }
+
+  const bookMove = getOpeningBookMove(game);
+  if (bookMove) {
+    const played = game.move({
+      from: bookMove.from as Square,
+      to: bookMove.to as Square,
+      promotion: bookMove.promotion,
+    });
+    const end = getGameOutcome(game);
+    return {
+      updated_fen: game.fen(),
+      result: end.result,
+      termination: end.termination,
+      captured: played.captured,
+      move: { from: played.from, to: played.to, san: played.san, promotion: played.promotion },
+    };
+  }
 
   const wasm = await loadWasmEngine();
   const startedAt = performance.now();
+  const maxDepth = Math.max(1, options.maxDepth ?? DEFAULT_MAX_DEPTH);
   const ctx: SearchContext = {
     startedAt,
-    deadline: startedAt + Math.max(10, options.timeLimitMs ?? MAX_SEARCH_MS),
+    deadline: startedAt + Math.max(
+      10,
+      options.timeLimitMs ?? allocateSearchTime(options.remainingTimeMs, options.incrementMs),
+    ),
+    minimumDepth: Math.min(MINIMUM_COMPLETED_DEPTH, maxDepth),
     nodeLimit: options.nodeLimit,
     nodes: 0,
     completedDepth: 0,
@@ -393,13 +521,12 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
     tt: new Map(),
     killers: new Map(),
     history: new Map(),
+    repetitionCounts: new Map(Object.entries(options.positionCounts ?? { [positionKey(game)]: 1 })),
   };
 
   const rootMoves = orderedMoves(game, ctx, 0);
   let bestMove = rootMoves[0];
   let bestScore = evaluate(game, wasm);
-  const maxDepth = Math.max(1, options.maxDepth ?? DEFAULT_MAX_DEPTH);
-
   for (let depth = 1; depth <= maxDepth; depth += 1) {
     try {
       const result = searchIteration(game, depth, bestScore, wasm, ctx, bestMove && moveKey(bestMove));
@@ -439,13 +566,29 @@ export async function evaluateQuiescenceForTesting(
   const ctx: SearchContext = {
     startedAt,
     deadline: startedAt + 30_000,
+    minimumDepth: 0,
     nodes: 0,
     completedDepth: 0,
     timedOut: false,
     tt: new Map(),
     killers: new Map(),
     history: new Map(),
+    repetitionCounts: new Map([[positionKey(game), 1]]),
   };
   const score = quiescence(game, alpha, beta, 0, 0, wasm, ctx);
   return { score, nodes: ctx.nodes };
+}
+
+export function searchTimeForTesting(remainingTimeMs: number, incrementMs: number): number {
+  return allocateSearchTime(remainingTimeMs, incrementMs);
+}
+
+export async function evaluatePositionForTesting(fen: string, ply = 0): Promise<number> {
+  const game = new Chess(fen);
+  const wasm = await loadWasmEngine();
+  return evaluate(game, wasm, ply);
+}
+
+export function transpositionKeyForTesting(fen: string): string {
+  return transpositionKey(new Chess(fen));
 }
