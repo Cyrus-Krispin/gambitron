@@ -1378,11 +1378,28 @@ body.hide-coords .square .coord {
   }
 
   .player-strip {
-    gap: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 8px;
   }
 
   .who {
-    min-width: 112px;
+    min-width: 0;
+  }
+
+  .who .meta {
+    min-width: 0;
+  }
+
+  .who .meta .name,
+  .who .meta .sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-strip .captures {
+    display: none;
   }
 
   .clock {

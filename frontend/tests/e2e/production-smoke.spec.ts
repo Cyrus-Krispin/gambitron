@@ -46,6 +46,24 @@ test("starts, plays, and reloads an active game", async ({ page }) => {
   await expect(page.locator(".move-list .mv").nth(1)).not.toHaveText("");
 });
 
+test("shows the player's clock on mobile and waits for White's first move", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.getByRole("button", { name: "♙ White" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+
+  const playerClock = page.getByRole("timer", { name: "Your clock: 5:00, stopped" });
+  await expect(playerClock).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(playerClock).toHaveText("5:00");
+
+  const clockBox = await playerClock.boundingBox();
+  expect(clockBox).not.toBeNull();
+  expect(clockBox!.x).toBeGreaterThanOrEqual(0);
+  expect(clockBox!.x + clockBox!.width).toBeLessThanOrEqual(320);
+  expect(clockBox!.y).toBeGreaterThanOrEqual(0);
+  expect(clockBox!.y + clockBox!.height).toBeLessThanOrEqual(568);
+});
+
 test("renders a useful not-found page", async ({ page }) => {
   await page.goto("/definitely-missing");
   await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();

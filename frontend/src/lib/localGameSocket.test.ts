@@ -95,4 +95,23 @@ describe("active local game state", () => {
       activeClock: null,
     }, "game-1")).not.toBeNull();
   });
+
+  it("migrates an unplayed White game to a stopped full clock", () => {
+    const restored = parseStoredGame({
+      gameId: "unplayed-white",
+      fen: new Chess().fen(),
+      playerColor: "white",
+      timeControlMs: 300_000,
+      incrementMs: 0,
+      playerTimeMs: 294_000,
+      aiTimeMs: 300_000,
+      activeClock: "player",
+      lastTick: 0,
+      moves: [],
+      persistedAt: Date.now(),
+    }, "unplayed-white");
+
+    expect(restored?.activeClock).toBeNull();
+    expect(restored?.playerTimeMs).toBe(300_000);
+  });
 });

@@ -232,7 +232,7 @@ const timeoutSocket = createLocalGameSocket((msg) => timeoutMessages.push(msg), 
     type: "start_game",
     timeControlMs: 25,
     incrementMs: 0,
-    playerColor: "white",
+    playerColor: "black",
   }));
 });
 const timeoutStarted = await waitFor(timeoutMessages, (msg) => msg.type === "game_started", "timeout game start");
@@ -258,7 +258,7 @@ const timeoutReloaded = await waitFor(
   "timeout after reload",
 );
 if (
-  timeoutReloaded.playerTimeMs !== 0 ||
+  timeoutReloaded.aiTimeMs !== 0 ||
   timeoutReloaded.result !== "0-1" ||
   timeoutReloaded.termination !== "timeout"
 ) {
