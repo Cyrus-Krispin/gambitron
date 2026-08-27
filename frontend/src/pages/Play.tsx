@@ -79,7 +79,8 @@ export default function Play() {
   const botTimeMs = game.aiTimeMs;
   const myTimeMs = game.playerTimeMs;
   const isBotActive = !game.isPlayersTurn && !game.gameEnded;
-  const isMyActive = game.isPlayersTurn && !game.gameEnded;
+  const isMyActive =
+    game.isPlayersTurn && !game.gameEnded && game.moveHistory.length > 0;
   const myLow = myTimeMs < 30000;
   const botLow = botTimeMs < 30000;
 

@@ -86,4 +86,60 @@ describe("local AI scheduling", () => {
 
     socket.close();
   });
+
+  it("keeps White's clock stopped until the first move", () => {
+    const timeouts: Array<() => void> = [];
+    const intervals: Array<() => void> = [];
+    const messages: ServerMessage[] = [];
+    const storedValues = new Map<string, string>();
+    let now = 1_000;
+
+    vi.stubGlobal("performance", { now: () => now });
+    vi.stubGlobal("WebSocket", class WebSocketStub {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 3;
+    });
+    vi.stubGlobal("window", {
+      setTimeout: (callback: () => void) => {
+        timeouts.push(callback);
+        return timeouts.length;
+      },
+      setInterval: (callback: () => void) => {
+        intervals.push(callback);
+        return intervals.length;
+      },
+      clearInterval: () => undefined,
+      localStorage: {
+        getItem: (key: string) => storedValues.get(key) ?? null,
+        setItem: (key: string, value: string) => storedValues.set(key, value),
+      },
+    });
+
+    const socket = createLocalGameSocket(
+      (message) => messages.push(message),
+      () => socket.send(JSON.stringify({
+        type: "start_game",
+        timeControlMs: 300_000,
+        playerColor: "white",
+      })),
+    );
+
+    while (timeouts.length > 0) timeouts.shift()?.();
+    now += 5_000;
+    intervals[0]?.();
+    while (timeouts.length > 0) timeouts.shift()?.();
+
+    const timeUpdates = messages.filter(
+      (message) => message.type === "time_update",
+    );
+    const latestTime = timeUpdates[timeUpdates.length - 1];
+    expect(latestTime).toMatchObject({
+      type: "time_update",
+      playerTimeMs: 300_000,
+      aiTimeMs: 300_000,
+    });
+
+    socket.close();
+  });
 });

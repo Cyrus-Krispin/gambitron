@@ -166,6 +166,8 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
     restoredResult = outcome.result;
     restoredTermination = outcome.termination;
   }
+  const isUnplayedWhiteGame =
+    !restoredResult && stored.playerColor === "white" && rebuilt.moves.length === 0;
 
   return {
     gameId: expectedGameId,
@@ -173,9 +175,9 @@ export function parseStoredGame(value: unknown, expectedGameId: string): LocalGa
     playerColor: stored.playerColor,
     timeControlMs: stored.timeControlMs,
     incrementMs: stored.incrementMs,
-    playerTimeMs: stored.playerTimeMs,
+    playerTimeMs: isUnplayedWhiteGame ? stored.timeControlMs : stored.playerTimeMs,
     aiTimeMs: stored.aiTimeMs,
-    activeClock: restoredResult ? null : activeClock,
+    activeClock: restoredResult || isUnplayedWhiteGame ? null : activeClock,
     lastTick: performance.now(),
     result: restoredResult,
     termination: restoredTermination,
@@ -388,7 +390,7 @@ export function createLocalGameSocket(
           incrementMs: msg.incrementMs ?? 0,
           playerTimeMs: msg.timeControlMs,
           aiTimeMs: msg.timeControlMs,
-          activeClock: msg.playerColor === "white" ? "player" : "ai",
+          activeClock: msg.playerColor === "white" ? null : "ai",
           lastTick: performance.now(),
           moves: [],
           positionCounts: { [positionKey(game.fen())]: 1 },
