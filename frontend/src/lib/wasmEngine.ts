@@ -29,6 +29,8 @@ export interface EngineOptions {
   maxDepth?: number;
   timeLimitMs?: number;
   nodeLimit?: number;
+  remainingTimeMs?: number;
+  incrementMs?: number;
 }
 
 type WasmEngineExports = {
@@ -85,6 +87,8 @@ const MINIMUM_COMPLETED_DEPTH = 3;
 const MAX_QUIESCENCE_DEPTH = 2;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
+const MIN_SEARCH_MS = 750;
+const MAX_SEARCH_ALLOCATION_MS = 6_000;
 
 let enginePromise: Promise<WasmEngineExports> | null = null;
 
@@ -149,13 +153,19 @@ function positionalScore(game: Chess): number {
   return score;
 }
 
-function evaluate(game: Chess, wasm: WasmEngineExports): number {
-  if (game.isCheckmate()) return -MATE_SCORE;
+function evaluate(game: Chess, wasm: WasmEngineExports, ply = 0): number {
+  if (game.isCheckmate()) return -MATE_SCORE + ply;
   if (game.isDraw()) return 0;
 
   const whiteScore = materialScore(game, wasm) + positionalScore(game);
-  const mobility = game.moves().length * 2;
-  return game.turn() === "w" ? whiteScore + mobility : -whiteScore + mobility;
+  return game.turn() === "w" ? whiteScore : -whiteScore;
+}
+
+function allocateSearchTime(remainingTimeMs?: number, incrementMs = 0): number {
+  if (remainingTimeMs === undefined) return MAX_SEARCH_MS;
+  const desired = remainingTimeMs / 60 + incrementMs * 0.75;
+  const allocation = Math.min(MAX_SEARCH_ALLOCATION_MS, Math.max(MIN_SEARCH_MS, desired));
+  return Math.max(100, Math.min(allocation, remainingTimeMs - 500));
 }
 
 function checkTime(ctx: SearchContext): void {
@@ -221,12 +231,12 @@ function quiescence(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
-  if (game.isGameOver()) return evaluate(game, wasm);
+  if (game.isGameOver()) return evaluate(game, wasm, ply);
 
   const inCheck = game.isCheck();
   let best = alpha;
   if (!inCheck) {
-    const standPat = evaluate(game, wasm);
+    const standPat = evaluate(game, wasm, ply);
     if (standPat >= beta) return standPat;
     best = Math.max(best, standPat);
     if (depth >= MAX_QUIESCENCE_DEPTH) return best;
@@ -239,7 +249,7 @@ function quiescence(
     game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
     try {
       const score = depth >= MAX_QUIESCENCE_DEPTH
-        ? -evaluate(game, wasm)
+        ? -evaluate(game, wasm, ply + 1)
         : -quiescence(game, -beta, -best, ply + 1, depth + 1, wasm, ctx);
       if (score >= beta) return score;
       best = Math.max(best, score);
@@ -260,7 +270,7 @@ function negamax(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
-  if (game.isGameOver()) return evaluate(game, wasm);
+  if (game.isGameOver()) return evaluate(game, wasm, ply);
   if (depth <= 0) return quiescence(game, alpha, beta, ply, 0, wasm, ctx);
 
   const alphaOriginal = alpha;
@@ -410,7 +420,10 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const maxDepth = Math.max(1, options.maxDepth ?? DEFAULT_MAX_DEPTH);
   const ctx: SearchContext = {
     startedAt,
-    deadline: startedAt + Math.max(10, options.timeLimitMs ?? MAX_SEARCH_MS),
+    deadline: startedAt + Math.max(
+      10,
+      options.timeLimitMs ?? allocateSearchTime(options.remainingTimeMs, options.incrementMs),
+    ),
     minimumDepth: Math.min(MINIMUM_COMPLETED_DEPTH, maxDepth),
     nodeLimit: options.nodeLimit,
     nodes: 0,
@@ -473,4 +486,14 @@ export async function evaluateQuiescenceForTesting(
   };
   const score = quiescence(game, alpha, beta, 0, 0, wasm, ctx);
   return { score, nodes: ctx.nodes };
+}
+
+export function searchTimeForTesting(remainingTimeMs: number, incrementMs: number): number {
+  return allocateSearchTime(remainingTimeMs, incrementMs);
+}
+
+export async function evaluatePositionForTesting(fen: string, ply = 0): Promise<number> {
+  const game = new Chess(fen);
+  const wasm = await loadWasmEngine();
+  return evaluate(game, wasm, ply);
 }

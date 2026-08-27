@@ -1,7 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { calculateAIMove, evaluateQuiescenceForTesting } from "./wasmEngine";
+import {
+  calculateAIMove,
+  evaluatePositionForTesting,
+  evaluateQuiescenceForTesting,
+  searchTimeForTesting,
+} from "./wasmEngine";
 
 describe("calculateAIMove", () => {
+  it("allocates more search time when the game clock can afford it", () => {
+    expect(searchTimeForTesting(300_000, 0)).toBeGreaterThanOrEqual(3_000);
+    expect(searchTimeForTesting(10_000, 0)).toBeLessThan(searchTimeForTesting(300_000, 0));
+    expect(searchTimeForTesting(300_000, 2_000)).toBeGreaterThan(searchTimeForTesting(300_000, 0));
+  });
+
+  it("keeps static evaluation stable when only the side to move changes", async () => {
+    const white = await evaluatePositionForTesting(
+      "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w kq - 4 6",
+    );
+    const black = await evaluatePositionForTesting(
+      "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 b kq - 4 6",
+    );
+
+    expect(white).toBe(-black);
+  });
+
+  it("scores a nearer checkmate higher than a later checkmate", async () => {
+    const fen = "5Q1k/8/6K1/8/8/8/8/8 b - - 1 1";
+
+    expect(await evaluatePositionForTesting(fen, 1)).toBeLessThan(
+      await evaluatePositionForTesting(fen, 5),
+    );
+  });
+
   it("completes at least depth three before the time budget can stop search", async () => {
     const result = await calculateAIMove(
       "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R2Q1RK1 w - - 2 9",
