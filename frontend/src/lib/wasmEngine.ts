@@ -31,6 +31,7 @@ export interface EngineOptions {
   nodeLimit?: number;
   remainingTimeMs?: number;
   incrementMs?: number;
+  positionCounts?: Readonly<Record<string, number>>;
 }
 
 type WasmEngineExports = {
@@ -57,6 +58,7 @@ type SearchContext = {
   tt: Map<string, TranspositionEntry>;
   killers: Map<number, string[]>;
   history: Map<string, number>;
+  repetitionCounts: Map<string, number>;
 };
 
 class SearchTimeout extends Error {}
@@ -84,7 +86,7 @@ const INFINITY = 1_000_000_000;
 const MAX_SEARCH_MS = 2_000;
 const DEFAULT_MAX_DEPTH = 7;
 const MINIMUM_COMPLETED_DEPTH = 3;
-const MAX_QUIESCENCE_DEPTH = 2;
+const MAX_QUIESCENCE_DEPTH = 4;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
 const MIN_SEARCH_MS = 750;
@@ -101,6 +103,32 @@ async function loadWasmEngine(): Promise<WasmEngineExports> {
 
 function moveKey(move: Move): string {
   return `${move.from}${move.to}${move.promotion ?? ""}`;
+}
+
+function positionKey(game: Chess): string {
+  return game.fen().split(" ").slice(0, 4).join(" ");
+}
+
+function transpositionKey(game: Chess): string {
+  return game.fen().split(" ").slice(0, 5).join(" ");
+}
+
+function repetitionCount(game: Chess, ctx: SearchContext): number {
+  return ctx.repetitionCounts.get(positionKey(game)) ?? 0;
+}
+
+function playSearchMove(game: Chess, move: Move, ctx: SearchContext): void {
+  game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+  const key = positionKey(game);
+  ctx.repetitionCounts.set(key, (ctx.repetitionCounts.get(key) ?? 0) + 1);
+}
+
+function undoSearchMove(game: Chess, ctx: SearchContext): void {
+  const key = positionKey(game);
+  const count = ctx.repetitionCounts.get(key) ?? 0;
+  if (count <= 1) ctx.repetitionCounts.delete(key);
+  else ctx.repetitionCounts.set(key, count - 1);
+  game.undo();
 }
 
 function historyKey(game: Chess, move: Move): string {
@@ -284,6 +312,7 @@ function quiescence(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
+  if (repetitionCount(game, ctx) >= 3) return 0;
   if (game.isGameOver()) return evaluate(game, wasm, ply);
 
   const inCheck = game.isCheck();
@@ -299,7 +328,7 @@ function quiescence(
     ? orderedMoves(game, ctx, ply)
     : orderedMoves(game, ctx, ply, undefined, true);
   for (const move of moves) {
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       const score = depth >= MAX_QUIESCENCE_DEPTH
         ? -evaluate(game, wasm, ply + 1)
@@ -307,7 +336,7 @@ function quiescence(
       if (score >= beta) return score;
       best = Math.max(best, score);
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
   return best;
@@ -323,13 +352,15 @@ function negamax(
   ctx: SearchContext,
 ): number {
   checkTime(ctx);
+  if (repetitionCount(game, ctx) >= 3) return 0;
   if (game.isGameOver()) return evaluate(game, wasm, ply);
   if (depth <= 0) return quiescence(game, alpha, beta, ply, 0, wasm, ctx);
 
   const alphaOriginal = alpha;
   const betaOriginal = beta;
-  const position = game.fen();
-  const entry = ctx.tt.get(position);
+  const position = transpositionKey(game);
+  const canUseTransposition = repetitionCount(game, ctx) <= 1;
+  const entry = canUseTransposition ? ctx.tt.get(position) : undefined;
   if (entry && entry.depth >= depth) {
     if (entry.flag === "exact") return entry.score;
     if (entry.flag === "lower") alpha = Math.max(alpha, entry.score);
@@ -345,7 +376,7 @@ function negamax(
     const quietHistoryKey = !move.captured && !move.promotion
       ? historyKey(game, move)
       : undefined;
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       let score: number;
       if (index === 0) {
@@ -372,12 +403,14 @@ function negamax(
         break;
       }
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
 
   const flag: Bound = bestScore <= alphaOriginal ? "upper" : bestScore >= betaOriginal ? "lower" : "exact";
-  if (bestMove) ctx.tt.set(position, { depth, score: bestScore, flag, bestMove: moveKey(bestMove) });
+  if (bestMove && canUseTransposition && Math.abs(bestScore) < MATE_BOUND) {
+    ctx.tt.set(position, { depth, score: bestScore, flag, bestMove: moveKey(bestMove) });
+  }
   return bestScore;
 }
 
@@ -393,7 +426,7 @@ function searchRoot(
   let bestScore = -INFINITY;
   let bestMove: Move | undefined;
   for (const [index, move] of orderedMoves(game, ctx, 0, previousBest).entries()) {
-    game.move({ from: move.from as Square, to: move.to as Square, promotion: move.promotion });
+    playSearchMove(game, move, ctx);
     try {
       let score: number;
       if (index === 0) {
@@ -409,7 +442,7 @@ function searchRoot(
       alpha = Math.max(alpha, score);
       if (alpha >= beta) break;
     } finally {
-      game.undo();
+      undoSearchMove(game, ctx);
     }
   }
   return { score: bestScore, move: bestMove };
@@ -450,6 +483,9 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const game = new Chess(fen);
   const current = getGameOutcome(game);
   if (current.result !== "*") return current;
+  if ((options.positionCounts?.[positionKey(game)] ?? 0) >= 3) {
+    return { result: "1/2-1/2", termination: "threefold repetition" };
+  }
 
   const bookMove = getOpeningBookMove(game);
   if (bookMove) {
@@ -485,6 +521,7 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
     tt: new Map(),
     killers: new Map(),
     history: new Map(),
+    repetitionCounts: new Map(Object.entries(options.positionCounts ?? { [positionKey(game)]: 1 })),
   };
 
   const rootMoves = orderedMoves(game, ctx, 0);
@@ -536,6 +573,7 @@ export async function evaluateQuiescenceForTesting(
     tt: new Map(),
     killers: new Map(),
     history: new Map(),
+    repetitionCounts: new Map([[positionKey(game), 1]]),
   };
   const score = quiescence(game, alpha, beta, 0, 0, wasm, ctx);
   return { score, nodes: ctx.nodes };
@@ -549,4 +587,8 @@ export async function evaluatePositionForTesting(fen: string, ply = 0): Promise<
   const game = new Chess(fen);
   const wasm = await loadWasmEngine();
   return evaluate(game, wasm, ply);
+}
+
+export function transpositionKeyForTesting(fen: string): string {
+  return transpositionKey(new Chess(fen));
 }

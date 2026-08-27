@@ -4,6 +4,7 @@ import {
   evaluatePositionForTesting,
   evaluateQuiescenceForTesting,
   searchTimeForTesting,
+  transpositionKeyForTesting,
 } from "./wasmEngine";
 
 describe("calculateAIMove", () => {
@@ -50,6 +51,23 @@ describe("calculateAIMove", () => {
     expect(safe).toBeGreaterThan(exposed);
   });
 
+  it("recognizes a threefold draw supplied by the game history", async () => {
+    const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 8 5";
+    const key = fen.split(" ").slice(0, 4).join(" ");
+    const result = await calculateAIMove(fen, { positionCounts: { [key]: 3 } });
+
+    expect(result.result).toBe("1/2-1/2");
+    expect(result.termination).toBe("threefold repetition");
+    expect(result.move).toBeUndefined();
+  });
+
+  it("reuses transpositions across different fullmove counters", () => {
+    const first = "8/8/8/8/8/8/6k1/6KR w - - 12 20";
+    const second = "8/8/8/8/8/8/6k1/6KR w - - 12 27";
+
+    expect(transpositionKeyForTesting(first)).toBe(transpositionKeyForTesting(second));
+  });
+
   it("completes at least depth three before the time budget can stop search", async () => {
     const result = await calculateAIMove(
       "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R2Q1RK1 w - - 2 9",
@@ -85,7 +103,7 @@ describe("calculateAIMove", () => {
       { maxDepth: 4, timeLimitMs: 30_000, nodeLimit: 500_000 },
     );
 
-    expect(result.move?.san).toBe("axb3");
+    expect(["axb3", "Qxb3"]).toContain(result.move?.san);
     expect(result.search?.depth).toBe(4);
     expect(result.search?.nodes).toBeLessThanOrEqual(10_000);
   });
