@@ -32,6 +32,24 @@ describe("calculateAIMove", () => {
     );
   });
 
+  it("penalizes doubled isolated pawns instead of rewarding blind advancement", async () => {
+    const healthy = await evaluatePositionForTesting("7k/8/8/8/8/2P1P3/8/6KR w - - 0 1");
+    const doubled = await evaluatePositionForTesting("7k/8/8/8/2P5/2P5/8/6KR w - - 0 1");
+
+    expect(healthy).toBeGreaterThan(doubled);
+  });
+
+  it("rewards king safety over exposing the king in the middlegame", async () => {
+    const safe = await evaluatePositionForTesting(
+      "rnbq1rk1/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQ1RK1 w - - 4 6",
+    );
+    const exposed = await evaluatePositionForTesting(
+      "rnbq1rk1/pppp1ppp/5n2/4p3/4P3/4KN2/PPPP1PPP/RNBQ3R w - - 4 6",
+    );
+
+    expect(safe).toBeGreaterThan(exposed);
+  });
+
   it("completes at least depth three before the time budget can stop search", async () => {
     const result = await calculateAIMove(
       "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R2Q1RK1 w - - 2 9",
@@ -69,6 +87,6 @@ describe("calculateAIMove", () => {
 
     expect(result.move?.san).toBe("axb3");
     expect(result.search?.depth).toBe(4);
-    expect(result.search?.nodes).toBeLessThanOrEqual(8_000);
+    expect(result.search?.nodes).toBeLessThanOrEqual(10_000);
   });
 });

@@ -127,6 +127,12 @@ function positionalScore(game: Chess): number {
   const board = game.board();
   let whiteBishops = 0;
   let blackBishops = 0;
+  const pawnFiles = { w: Array<number>(8).fill(0), b: Array<number>(8).fill(0) };
+  const pawns: Array<{ color: "w" | "b"; rank: number; file: number; relativeRank: number }> = [];
+  const kings: Partial<Record<"w" | "b", { rank: number; file: number; relativeRank: number }>> = {};
+  let whiteUndevelopedMinors = 0;
+  let blackUndevelopedMinors = 0;
+  const fullmoveNumber = Number(game.fen().split(" ")[5]);
 
   for (let rank = 0; rank < board.length; rank += 1) {
     for (let file = 0; file < board[rank].length; file += 1) {
@@ -138,18 +144,65 @@ function positionalScore(game: Chess): number {
       const relativeRank = piece.color === "w" ? rankFromWhite : 7 - rankFromWhite;
       const centerDistance = Math.abs(file - 3.5) + Math.abs(rank - 3.5);
 
-      if (piece.type === "p") score += sign * (relativeRank * 7 - Math.floor(centerDistance * 2));
+      if (piece.type === "p") {
+        score += sign * (relativeRank * 5 - Math.floor(centerDistance * 2));
+        pawnFiles[piece.color][file] += 1;
+        pawns.push({ color: piece.color, rank, file, relativeRank });
+      }
       if (piece.type === "n" || piece.type === "b") score += sign * Math.round(18 - centerDistance * 4);
       if (piece.type === "r" && relativeRank === 6) score += sign * 18;
       if (piece.type === "b") {
         if (piece.color === "w") whiteBishops += 1;
         else blackBishops += 1;
       }
+      if (piece.type === "k") kings[piece.color] = { rank, file, relativeRank };
+      if (fullmoveNumber <= 12 && (piece.type === "n" || piece.type === "b")) {
+        const onStartingRank = relativeRank === 0;
+        const onStartingFile = piece.type === "n" ? file === 1 || file === 6 : file === 2 || file === 5;
+        if (onStartingRank && onStartingFile) {
+          if (piece.color === "w") whiteUndevelopedMinors += 1;
+          else blackUndevelopedMinors += 1;
+        }
+      }
     }
   }
 
   if (whiteBishops >= 2) score += 35;
   if (blackBishops >= 2) score -= 35;
+  if (fullmoveNumber <= 12) score += (blackUndevelopedMinors - whiteUndevelopedMinors) * 8;
+
+  for (const color of ["w", "b"] as const) {
+    const sign = color === "w" ? 1 : -1;
+    for (let file = 0; file < 8; file += 1) {
+      const count = pawnFiles[color][file];
+      if (count > 1) score -= sign * (count - 1) * 18;
+      if (count > 0 && (pawnFiles[color][file - 1] ?? 0) === 0 && (pawnFiles[color][file + 1] ?? 0) === 0) {
+        score -= sign * count * 12;
+      }
+    }
+
+    const king = kings[color];
+    if (king && fullmoveNumber <= 20) {
+      if (king.relativeRank === 0 && (king.file === 2 || king.file === 6)) score += sign * 30;
+      else if (king.relativeRank > 0 || king.file === 3 || king.file === 4) score -= sign * 25;
+
+      const shieldRank = king.rank + (color === "w" ? -1 : 1);
+      for (let file = king.file - 1; file <= king.file + 1; file += 1) {
+        const shield = board[shieldRank]?.[file];
+        if (shield?.type === "p" && shield.color === color) score += sign * 6;
+      }
+    }
+  }
+
+  for (const pawn of pawns) {
+    const opponent = pawn.color === "w" ? "b" : "w";
+    const blockedByOpponentPawn = pawns.some((other) => (
+      other.color === opponent
+      && Math.abs(other.file - pawn.file) <= 1
+      && (pawn.color === "w" ? other.rank < pawn.rank : other.rank > pawn.rank)
+    ));
+    if (!blockedByOpponentPawn) score += (pawn.color === "w" ? 1 : -1) * pawn.relativeRank * 4;
+  }
   return score;
 }
 
