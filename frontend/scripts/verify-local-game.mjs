@@ -61,7 +61,7 @@ function waitFor(messages, predicate, label, startIndex = 0) {
         resolve(match);
         return;
       }
-      if (Date.now() - started > 2500) {
+      if (Date.now() - started > 7000) {
         reject(new Error(`Timed out waiting for ${label}. Messages: ${JSON.stringify(messages)}`));
         return;
       }

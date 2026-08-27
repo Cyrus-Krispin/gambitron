@@ -90,7 +90,7 @@ const MAX_QUIESCENCE_DEPTH = 4;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
 const MIN_SEARCH_MS = 750;
-const MAX_SEARCH_ALLOCATION_MS = 6_000;
+const MAX_SEARCH_ALLOCATION_MS = 4_500;
 
 let enginePromise: Promise<WasmEngineExports> | null = null;
 
@@ -244,7 +244,7 @@ function evaluate(game: Chess, wasm: WasmEngineExports, ply = 0): number {
 
 function allocateSearchTime(remainingTimeMs?: number, incrementMs = 0): number {
   if (remainingTimeMs === undefined) return MAX_SEARCH_MS;
-  const desired = remainingTimeMs / 60 + incrementMs * 0.75;
+  const desired = remainingTimeMs / 100 + incrementMs * 0.5;
   const allocation = Math.min(MAX_SEARCH_ALLOCATION_MS, Math.max(MIN_SEARCH_MS, desired));
   return Math.max(100, Math.min(allocation, remainingTimeMs - 500));
 }
