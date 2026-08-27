@@ -28,6 +28,14 @@ const ACTIVE_GAMES_STORAGE_KEY = "gambitron.activeGames.v1";
 const localGames = new Map<string, LocalGameState>();
 const subscribers = new Map<string, Set<(msg: ServerMessage) => void>>();
 
+function runAfterNextPaint(callback: () => void): void {
+  if (typeof window.requestAnimationFrame !== "function") {
+    window.setTimeout(callback, 0);
+    return;
+  }
+  window.requestAnimationFrame(() => window.setTimeout(callback, 0));
+}
+
 export function engineOptionsForState(
   state: Pick<LocalGameState, "aiTimeMs" | "incrementMs" | "positionCounts">,
 ): EngineOptions {
@@ -363,6 +371,8 @@ export function createLocalGameSocket(
     }
   };
 
+  const scheduleAIMove = () => runAfterNextPaint(() => void runAIMove());
+
   const socket = {
     readyState: WebSocket.CONNECTING,
     send(raw: string) {
@@ -454,7 +464,7 @@ export function createLocalGameSocket(
           });
           return;
         }
-        void runAIMove();
+        scheduleAIMove();
       } else if (msg.type === "request_ai_move") {
         if (!state) return;
         try {
@@ -463,7 +473,7 @@ export function createLocalGameSocket(
           dispatch({ type: "error", message: "The requested position did not match the active game." });
           return;
         }
-        void runAIMove();
+        scheduleAIMove();
       } else if (msg.type === "subscribe") {
         state = localGames.get(msg.gameId) ?? restoreGame(msg.gameId) ?? state;
         if (!state || state.gameId !== msg.gameId) {
@@ -486,7 +496,7 @@ export function createLocalGameSocket(
           moves: state.moves,
         });
         if (!state.result && state.activeClock === "ai") {
-          void runAIMove();
+          scheduleAIMove();
         }
       } else if (msg.type === "ping") {
         dispatch({ type: "pong" });
