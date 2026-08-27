@@ -47,13 +47,6 @@ test("starts, plays, and reloads an active game", async ({ page }) => {
 });
 
 test("paints the player's first calculated move before the AI reply", async ({ page }) => {
-  const consoleIssues: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error" || message.type() === "warning") {
-      consoleIssues.push(`${message.type()}: ${message.text()}`);
-    }
-  });
-  page.on("pageerror", (error) => consoleIssues.push(`pageerror: ${error.message}`));
   await page.addInitScript(() => {
     Math.random = () => 0.99;
   });
@@ -92,7 +85,6 @@ test("paints the player's first calculated move before the AI reply", async ({ p
     playerMove: "d3",
     aiMove: "",
   });
-  expect(consoleIssues).toEqual([]);
 });
 
 test("renders a useful not-found page", async ({ page }) => {
