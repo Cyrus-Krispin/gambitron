@@ -51,6 +51,28 @@ describe("calculateAIMove", () => {
     expect(safe).toBeGreaterThan(exposed);
   });
 
+  it("rewards preserving castling rights in the opening", async () => {
+    const canStillCastle = await evaluatePositionForTesting(
+      "r3k2r/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/R3K2R w KQkq - 0 5",
+    );
+    const gaveUpCastling = await evaluatePositionForTesting(
+      "r3k2r/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/R3K2R w kq - 0 5",
+    );
+
+    expect(canStillCastle).toBeGreaterThan(gaveUpCastling);
+  });
+
+  it("penalizes an early king move that gives up castling", async () => {
+    const kingAtHome = await evaluatePositionForTesting(
+      "r3k2r/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/R3K2R w - - 0 5",
+    );
+    const kingMovedToF1 = await evaluatePositionForTesting(
+      "r3k2r/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/R4K1R w - - 0 5",
+    );
+
+    expect(kingAtHome).toBeGreaterThan(kingMovedToF1);
+  });
+
   it("recognizes a threefold draw supplied by the game history", async () => {
     const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 8 5";
     const key = fen.split(" ").slice(0, 4).join(" ");
