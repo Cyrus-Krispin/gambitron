@@ -46,6 +46,55 @@ test("starts, plays, and reloads an active game", async ({ page }) => {
   await expect(page.locator(".move-list .mv").nth(1)).not.toHaveText("");
 });
 
+test("paints the player's first calculated move before the AI reply", async ({ page }) => {
+  const consoleIssues: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning") {
+      consoleIssues.push(`${message.type()}: ${message.text()}`);
+    }
+  });
+  page.on("pageerror", (error) => consoleIssues.push(`pageerror: ${error.message}`));
+  await page.addInitScript(() => {
+    Math.random = () => 0.99;
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "♙ White" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+
+  const playBookMove = async (from: RegExp, to: RegExp, aiMoveIndex: number) => {
+    await page.getByRole("gridcell", { name: from }).click();
+    await page.getByRole("gridcell", { name: to }).click();
+    await expect(page.locator(".move-list .mv").nth(aiMoveIndex)).not.toHaveText("");
+  };
+
+  await playBookMove(/^e2, white pawn/, /^e4, empty, legal move/, 1);
+  await playBookMove(/^g1, white knight/, /^f3, empty, legal move/, 3);
+  await playBookMove(/^f1, white bishop/, /^b5, empty, legal move/, 5);
+  await playBookMove(/^e1, white king/, /^g1, empty, legal move/, 7);
+
+  await page.getByRole("gridcell", { name: /^d2, white pawn/ }).click();
+  const stateAfterPaint = await page.evaluate(async () => {
+    const target = document.querySelector<HTMLButtonElement>(
+      '[aria-label^="d3, empty, legal move"]',
+    );
+    target?.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const moves = Array.from(document.querySelectorAll(".move-list .mv"));
+    return {
+      playerPiecePainted: Boolean(document.querySelector('[aria-label^="d3, white pawn"]')),
+      playerMove: moves[8]?.textContent?.trim(),
+      aiMove: moves[9]?.textContent?.trim(),
+    };
+  });
+
+  expect(stateAfterPaint).toEqual({
+    playerPiecePainted: true,
+    playerMove: "d3",
+    aiMove: "",
+  });
+  expect(consoleIssues).toEqual([]);
+});
+
 test("renders a useful not-found page", async ({ page }) => {
   await page.goto("/definitely-missing");
   await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
