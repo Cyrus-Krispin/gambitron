@@ -1,5 +1,5 @@
 import { Chess } from "chess.js";
-import { calculateAIMove } from "@/lib/wasmEngine";
+import { calculateAIMove, type EngineOptions } from "@/lib/wasmEngine";
 import { getGameOutcome } from "@/lib/gameOutcome";
 import type { ClientMessage, GameMoveMessage, ServerMessage } from "@/lib/websocket";
 
@@ -27,6 +27,16 @@ export interface LocalGameState {
 const ACTIVE_GAMES_STORAGE_KEY = "gambitron.activeGames.v1";
 const localGames = new Map<string, LocalGameState>();
 const subscribers = new Map<string, Set<(msg: ServerMessage) => void>>();
+
+export function engineOptionsForState(
+  state: Pick<LocalGameState, "aiTimeMs" | "incrementMs" | "positionCounts">,
+): EngineOptions {
+  return {
+    remainingTimeMs: state.aiTimeMs,
+    incrementMs: state.incrementMs,
+    positionCounts: state.positionCounts,
+  };
+}
 
 function readStoredGames(): unknown[] {
   try {
@@ -304,7 +314,7 @@ export function createLocalGameSocket(
     publishTime();
 
     try {
-      const ai = await calculateAIMove(state.fen);
+      const ai = await calculateAIMove(state.fen, engineOptionsForState(state));
       if (!state || state.result) return;
       applyClock();
       const repetitions = ai.move && ai.updated_fen ? recordPosition(state, ai.updated_fen) : 0;
