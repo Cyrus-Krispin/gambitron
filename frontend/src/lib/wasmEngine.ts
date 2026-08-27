@@ -46,6 +46,7 @@ type TranspositionEntry = {
 
 type SearchContext = {
   deadline: number;
+  minimumDepth: number;
   nodeLimit?: number;
   startedAt: number;
   nodes: number;
@@ -78,8 +79,9 @@ const PIECE_VALUES: Record<PieceSymbol, number> = {
 const MATE_SCORE = 100_000;
 const MATE_BOUND = MATE_SCORE - 1_000;
 const INFINITY = 1_000_000_000;
-const MAX_SEARCH_MS = 450;
+const MAX_SEARCH_MS = 2_000;
 const DEFAULT_MAX_DEPTH = 7;
+const MINIMUM_COMPLETED_DEPTH = 3;
 const MAX_QUIESCENCE_DEPTH = 2;
 const ASPIRATION_WINDOW = 50;
 const TIME_CHECK_INTERVAL = 64;
@@ -159,7 +161,11 @@ function evaluate(game: Chess, wasm: WasmEngineExports): number {
 function checkTime(ctx: SearchContext): void {
   ctx.nodes += 1;
   if (ctx.nodeLimit !== undefined && ctx.nodes >= ctx.nodeLimit) throw new SearchTimeout();
-  if ((ctx.nodes === 1 || ctx.nodes % TIME_CHECK_INTERVAL === 0) && performance.now() >= ctx.deadline) {
+  if (
+    ctx.completedDepth >= ctx.minimumDepth
+    && (ctx.nodes === 1 || ctx.nodes % TIME_CHECK_INTERVAL === 0)
+    && performance.now() >= ctx.deadline
+  ) {
     throw new SearchTimeout();
   }
 }
@@ -401,9 +407,11 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
 
   const wasm = await loadWasmEngine();
   const startedAt = performance.now();
+  const maxDepth = Math.max(1, options.maxDepth ?? DEFAULT_MAX_DEPTH);
   const ctx: SearchContext = {
     startedAt,
     deadline: startedAt + Math.max(10, options.timeLimitMs ?? MAX_SEARCH_MS),
+    minimumDepth: Math.min(MINIMUM_COMPLETED_DEPTH, maxDepth),
     nodeLimit: options.nodeLimit,
     nodes: 0,
     completedDepth: 0,
@@ -416,8 +424,6 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const rootMoves = orderedMoves(game, ctx, 0);
   let bestMove = rootMoves[0];
   let bestScore = evaluate(game, wasm);
-  const maxDepth = Math.max(1, options.maxDepth ?? DEFAULT_MAX_DEPTH);
-
   for (let depth = 1; depth <= maxDepth; depth += 1) {
     try {
       const result = searchIteration(game, depth, bestScore, wasm, ctx, bestMove && moveKey(bestMove));
@@ -457,6 +463,7 @@ export async function evaluateQuiescenceForTesting(
   const ctx: SearchContext = {
     startedAt,
     deadline: startedAt + 30_000,
+    minimumDepth: 0,
     nodes: 0,
     completedDepth: 0,
     timedOut: false,

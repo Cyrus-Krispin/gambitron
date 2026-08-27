@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { calculateAIMove, evaluateQuiescenceForTesting } from "./wasmEngine";
 
 describe("calculateAIMove", () => {
+  it("completes at least depth three before the time budget can stop search", async () => {
+    const result = await calculateAIMove(
+      "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R2Q1RK1 w - - 2 9",
+      { maxDepth: 7, timeLimitMs: 10 },
+    );
+
+    expect(result.search?.depth).toBeGreaterThanOrEqual(3);
+  });
+
   it("plays a book response during the first four moves before searching", async () => {
     const result = await calculateAIMove(
       "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
