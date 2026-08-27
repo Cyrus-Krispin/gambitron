@@ -15,8 +15,7 @@
     "test:e2e": "playwright test",
     "test:config": "node scripts/verify-deployment-config.mjs",
     "preview": "vite preview",
-    "test:local-game": "node scripts/verify-local-game.mjs",
-    "test:engine": "node scripts/engine-strength.mjs"
+    "test:local-game": "node scripts/verify-local-game.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

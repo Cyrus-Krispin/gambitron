@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { calculateAIMove, evaluateQuiescenceForTesting } from "./wasmEngine";
 
 describe("calculateAIMove", () => {
+  it("plays a book response during the first four moves before searching", async () => {
+    const result = await calculateAIMove(
+      "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+    );
+
+    expect(["Nf3", "Bc4", "Bb5", "d4"]).toContain(result.move?.san);
+    expect(result.search).toBeUndefined();
+  });
+
   it("searches legal check evasions instead of accepting a stand-pat score", async () => {
     const result = await evaluateQuiescenceForTesting(
       "7k/8/8/8/8/8/7r/7K w - - 0 1",

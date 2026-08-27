@@ -1,5 +1,6 @@
 import { Chess, type Move, type PieceSymbol, type Square } from "chess.js";
 import { getGameOutcome } from "./gameOutcome";
+import { getOpeningBookMove } from "./openingBook";
 
 export interface SearchDiagnostics {
   depth: number;
@@ -380,6 +381,23 @@ export async function calculateAIMove(fen: string, options: EngineOptions = {}):
   const game = new Chess(fen);
   const current = getGameOutcome(game);
   if (current.result !== "*") return current;
+
+  const bookMove = getOpeningBookMove(game);
+  if (bookMove) {
+    const played = game.move({
+      from: bookMove.from as Square,
+      to: bookMove.to as Square,
+      promotion: bookMove.promotion,
+    });
+    const end = getGameOutcome(game);
+    return {
+      updated_fen: game.fen(),
+      result: end.result,
+      termination: end.termination,
+      captured: played.captured,
+      move: { from: played.from, to: played.to, san: played.san, promotion: played.promotion },
+    };
+  }
 
   const wasm = await loadWasmEngine();
   const startedAt = performance.now();
